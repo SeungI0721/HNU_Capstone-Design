@@ -1,7 +1,5 @@
 # Smart Shield HW
 
-**ESP32-Based PPE Wearable Hardware for Construction Site Hazard Detection**
-
 Smart Shield HW는 건설 현장 작업자의 **생체 데이터, 환경 데이터, 자세 데이터**를 수집하고,
 위험도 단계에 따라 **RGB LED, 진동모터, 부저**로 작업자에게 즉시 경고를 제공하기 위한
 ESP32 기반 PPE 웨어러블 하드웨어 구성입니다.
@@ -49,30 +47,7 @@ RGB LED / Vibration Motor / Buzzer
 
 ---
 
-## 3. Excluded Components
-
-최종 하드웨어 구성에서는 다음 부품을 제외합니다.
-
-| Component     | Reason                                                               |
-| ------------- | -------------------------------------------------------------------- |
-| MLX90614      | 비접촉 온도센서로 거리, 각도, 시야각, 주변 열원 영향이 크며, Fever Click / MAX30205와 역할이 중복됨 |
-| DFPlayer Mini | microSD 카드, 음성 파일, 별도 스피커, UART, 전원 안정화가 필요하므로 회로 복잡도가 증가함           |
-
-대체 구조:
-
-```text
-MLX90614
-→ 제외
-→ MAX30205 / Fever Click 기반 피부 접촉 온도 사용
-
-DFPlayer Mini + Speaker
-→ 제외
-→ Buzzer 기반 단순 경고음 사용
-```
-
----
-
-## 4. Sensor Data Role
+## 3. Sensor Data Role
 
 각 센서 데이터의 역할은 다음과 같습니다.
 
@@ -90,20 +65,14 @@ DFPlayer Mini + Speaker
 BLE payload 예시:
 
 ```text
-ID:0001,TEMP:36.5,HR:102,ENV:33.1,HUM:71,LUX:45000,POSTURE:NORMAL
-```
-
-SpO₂ 포함 시:
-
-```text
 ID:0001,TEMP:36.5,HR:102,SPO2:97,ENV:33.1,HUM:71,LUX:45000,POSTURE:NORMAL
 ```
 
 ---
 
-## 5. ESP32 Pin Assignment
+## 4. ESP32 Pin Assignment
 
-### 5.1 I2C Bus
+### 4.1 I2C Bus
 
 I2C 센서들은 하나의 공용 I2C 버스에 연결합니다.
 
@@ -132,7 +101,7 @@ MAX30205 / Fever Click
 
 ---
 
-### 5.2 Final Pin Map
+### 4.2 Final Pin Map
 
 | Function        | Component                                   | ESP32 Pin        |
 | --------------- | ------------------------------------------- | ---------------- |
@@ -155,9 +124,9 @@ LED, 부저, 진동모터 출력에는 사용하지 않는다.
 
 ---
 
-## 6. Sensor Wiring
+## 5. Sensor Wiring
 
-### 6.1 BME280
+### 5.1 BME280
 
 BME280은 작업자 주변의 온도, 습도, 기압을 측정합니다.
 
@@ -191,7 +160,7 @@ BME280은 체온 센서가 아니다.
 
 ---
 
-### 6.2 BH1750 / GY-302
+### 5.2 BH1750 / GY-302
 
 BH1750은 조도를 lux 단위로 측정합니다.
 
@@ -224,7 +193,7 @@ RGB LED 빛이 조도센서에 직접 들어가지 않도록 배치해야 한다
 
 ---
 
-### 6.3 MPU6050 / GY-521
+### 5.3 MPU6050 / GY-521
 
 MPU6050은 3축 가속도와 3축 자이로 데이터를 측정합니다.
 
@@ -268,7 +237,7 @@ MPU6050은 몸통과 함께 움직이는 단단한 위치에 고정해야 한다
 
 ---
 
-### 6.4 MAX30102 / SEN0344
+### 5.4 MAX30102 / SEN0344
 
 MAX30102는 PPG 방식으로 심박수와 산소포화도 추정값을 측정합니다.
 
@@ -305,7 +274,7 @@ MAX30102는 피부 밀착과 외부광 차단이 중요하다.
 
 ---
 
-### 6.5 MAX30205 / MIKROE-2554 Fever Click
+### 5.5 MAX30205 / MIKROE-2554 Fever Click
 
 MAX30205 / Fever Click은 작업자의 피부 접촉 온도를 측정합니다.
 
@@ -350,9 +319,9 @@ MAX30205 / Fever Click은 아직 실물 검증 전이다.
 
 ---
 
-## 7. Output Module Wiring
+## 6. Output Module Wiring
 
-### 7.1 RGB LED Module
+### 6.1 RGB LED Module
 
 RGB LED는 위험도 단계를 색상으로 표시합니다.
 
@@ -388,7 +357,7 @@ EMERGENCY = Red Blink
 
 ---
 
-### 7.2 Vibration Motor
+### 6.2 Vibration Motor
 
 진동모터는 작업자에게 촉각 경고를 제공합니다.
 
@@ -428,7 +397,7 @@ MPU6050과 물리적으로 떨어뜨린다.
 
 ---
 
-### 7.3 Buzzer
+### 6.3 Buzzer
 
 부저는 DFPlayer Mini를 대체하는 단순 청각 경고 장치입니다.
 
@@ -458,7 +427,7 @@ Passive Buzzer는 PWM 주파수로 제어한다.
 
 ---
 
-## 8. Warning Output Pattern
+## 7. Warning Output Pattern
 
 ESP32는 작업자 앱에서 받은 위험도 명령에 따라 출력장치를 제어합니다.
 
@@ -495,7 +464,7 @@ Buzzer 150ms ON / 150ms OFF repeat
 
 ---
 
-## 9. BLE Hardware Interface
+## 8. BLE Hardware Interface
 
 ESP32는 BLE Peripheral / GATT Server로 동작합니다.
 
@@ -522,7 +491,7 @@ Firebase workerId: 0001
 
 ---
 
-## 10. BLE UUID
+## 9. BLE UUID
 
 Service UUID:
 
@@ -550,7 +519,7 @@ CCCD:
 
 ---
 
-## 11. BLE Payload
+## 10. BLE Payload
 
 ESP32는 1초 주기로 센서 데이터를 BLE Notify로 전송합니다.
 
@@ -558,11 +527,6 @@ ESP32는 1초 주기로 센서 데이터를 BLE Notify로 전송합니다.
 
 ```text
 ID:0001,TEMP:36.5,HR:102,ENV:33.1,HUM:71,LUX:45000,POSTURE:NORMAL
-```
-
-확장 payload:
-
-```text
 ID:0001,TEMP:36.5,HR:102,SPO2:97,ENV:33.1,HUM:71,LUX:45000,POSTURE:NORMAL
 ```
 
@@ -581,7 +545,7 @@ ID:0001,TEMP:36.5,HR:102,SPO2:97,ENV:33.1,HUM:71,LUX:45000,POSTURE:NORMAL
 
 ---
 
-## 12. BLE Control Command
+## 11. BLE Control Command
 
 작업자 앱은 계산된 위험도 결과를 ESP32에 BLE Write로 전송합니다.
 
@@ -596,7 +560,7 @@ ESP32는 해당 명령에 따라 RGB LED, 진동모터, 부저를 제어합니�
 
 ---
 
-## 13. Hardware Placement
+## 12. Hardware Placement
 
 | Component              | Recommended Position      | Reason             |
 | ---------------------- | ------------------------- | ------------------ |
@@ -612,7 +576,7 @@ ESP32는 해당 명령에 따라 RGB LED, 진동모터, 부저를 제어합니�
 
 ---
 
-## 14. Hardware Test Order
+## 13. Hardware Test Order
 
 하드웨어 테스트는 다음 순서로 진행합니다.
 
@@ -638,7 +602,7 @@ ESP32는 해당 명령에 따라 RGB LED, 진동모터, 부저를 제어합니�
 
 ---
 
-## 15. I2C Address Checklist
+## 14. I2C Address Checklist
 
 | Component              | Expected Address    |
 | ---------------------- | ------------------- |
@@ -657,7 +621,7 @@ ESP32는 해당 명령에 따라 RGB LED, 진동모터, 부저를 제어합니�
 
 ---
 
-## 16. Hardware Design Notes
+## 15. Hardware Design Notes
 
 ```text
 1. 센서 전원은 가능하면 3.3V로 통일한다.
@@ -681,7 +645,7 @@ ESP32는 해당 명령에 따라 RGB LED, 진동모터, 부저를 제어합니�
 
 ---
 
-## 17. Development Roadmap
+## 16. Development Roadmap
 
 ```text
 1. 하드웨어 단품 테스트
@@ -699,7 +663,7 @@ ESP32는 해당 명령에 따라 RGB LED, 진동모터, 부저를 제어합니�
 
 ---
 
-## 18. Final Summary
+## 17. Final Summary
 
 ```text
 Smart Shield HW는 ESP32 DevKit을 중심으로 BME280, BH1750, MPU6050, MAX30102, MAX30205/Fever Click 센서를 통합하고, 위험도 단계에 따라 RGB LED, 진동모터, 부저로 작업자에게 경고를 제공하는 PPE 웨어러블 하드웨어이다. MLX90614 비접촉 온도센서와 DFPlayer Mini 음성 출력 모듈은 최종 구성에서 제외하며, 피부 접촉 온도는 MAX30205/Fever Click으로 측정하고 청각 경고는 단순 부저로 처리한다.
