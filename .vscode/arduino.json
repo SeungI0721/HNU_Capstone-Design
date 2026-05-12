@@ -1,0 +1,6 @@
+{
+    "board": "esp32:esp32:esp32",
+    "port": "COM4",
+    "sketch": "HW/TestCode/Integration_Test_Code/Integration_Test_Code.ino",
+    "output": "build"
+}

@@ -1,22 +1,19 @@
 # Smart Shield HW
 
+<<<<<<< HEAD
 Smart Shield HW는 건설 현장 작업자의 **생체 데이터, 환경 데이터, 자세 데이터**를 수집하고,
 위험도 단계에 따라 **RGB LED, 진동모터, 부저**로 작업자에게 즉시 경고를 제공하기 위한
 ESP32 기반 PPE 웨어러블 하드웨어 구성입니다.
+=======
+ESP32-based PPE wearable hazard detection hardware. The device collects sensor data and drives RGB LED, vibration motor, and buzzer warnings according to risk commands from the Android app.
 
-본 문서는 Smart Shield 프로젝트의 **하드웨어 전용 README**입니다.
+## Board Setting
+>>>>>>> b978585 (Sensor Test)
 
----
-
-## 1. Hardware Overview
-
-Smart Shield 하드웨어는 ESP32 DevKit을 중심으로 구성됩니다.
-
-ESP32는 각 센서에서 데이터를 수집하고, BLE를 통해 작업자 Android 앱으로 센서 데이터를 전송합니다.
-작업자 앱에서 계산된 위험도 명령을 다시 BLE Write로 수신하면,
-ESP32는 위험 단계에 따라 RGB LED, 진동모터, 부저를 제어합니다.
+Arduino IDE:
 
 ```text
+<<<<<<< HEAD
 [ Sensors ]
 BME280 / BH1750 / MPU6050 / MAX30102 / MAX30205
         ↓
@@ -87,69 +84,132 @@ I2C 연결 센서:
 
 ```text
 BME280
+=======
+Tools > Board > esp32 > ESP32 Dev Module
+Tools > Port  > COM4
+Serial Monitor baud rate: 115200
+```
+
+Arduino CLI:
+
+```powershell
+arduino-cli compile --fqbn esp32:esp32:esp32 "D:\HNU\HW\TestCode\Sensor\I2C_Seaner"
+arduino-cli upload -p COM4 --fqbn esp32:esp32:esp32 "D:\HNU\HW\TestCode\Sensor\I2C_Seaner"
+```
+
+## Required Libraries
+
+Installed/used libraries:
+
+```text
+Adafruit BME280 Library
+Adafruit BusIO
+Adafruit Unified Sensor
+Adafruit MPU6050
+>>>>>>> b978585 (Sensor Test)
 BH1750
-MPU6050
-MAX30102
-MAX30205 / Fever Click
+SparkFun MAX3010x Pulse and Proximity Sensor Library
 ```
 
-권장 I2C 속도:
+Install command:
 
-```text
-100 kHz
+```powershell
+arduino-cli lib install "Adafruit BME280 Library" "Adafruit Unified Sensor" "Adafruit MPU6050" "BH1750" "SparkFun MAX3010x Pulse and Proximity Sensor Library"
 ```
 
----
+MAX30205 is tested with direct I2C register reads, so no separate MAX30205 library is required.
 
+<<<<<<< HEAD
 ### 4.2 Final Pin Map
+=======
+## Pin Map
+>>>>>>> b978585 (Sensor Test)
 
-| Function        | Component                                   | ESP32 Pin        |
-| --------------- | ------------------------------------------- | ---------------- |
-| I2C SDA         | BME280, BH1750, MPU6050, MAX30102, MAX30205 | GPIO21           |
-| I2C SCL         | BME280, BH1750, MPU6050, MAX30102, MAX30205 | GPIO22           |
-| RGB Red         | RGB LED R                                   | GPIO27           |
-| RGB Green       | RGB LED G                                   | GPIO32           |
-| RGB Blue        | RGB LED B                                   | GPIO33           |
-| Vibration Motor | MOSFET Gate / Transistor Base               | GPIO23           |
-| Buzzer          | Buzzer Signal                               | GPIO18           |
-| MPU6050 INT     | MPU6050 INT                                 | GPIO34, optional |
-| MAX30205 OS/INT | Fever Click OS/INT                          | GPIO35, optional |
+| Function | Component | ESP32 Pin |
+| --- | --- | --- |
+| I2C SDA | BME280, BH1750, MPU6050, MAX30102, MAX30205 | GPIO21 |
+| I2C SCL | BME280, BH1750, MPU6050, MAX30102, MAX30205 | GPIO22 |
+| RGB Red | YwRobot RGB LED R | GPIO27 |
+| RGB Green | YwRobot RGB LED G | GPIO32 |
+| RGB Blue | YwRobot RGB LED B | GPIO33 |
+| Vibration Motor | MOSFET/transistor gate/base | GPIO23 |
+| Buzzer | Passive/active buzzer signal | GPIO18 |
 
-주의:
+Use 3.3 V logic for sensor signals. Do not drive a vibration motor directly from an ESP32 GPIO; use a MOSFET or transistor and a flyback diode.
+
+## I2C Address Checklist
+
+| Component | Expected Address |
+| --- | --- |
+| BH1750 / GY-302 | 0x23 or 0x5C |
+| MAX30205 / Fever Click | 0x48 or 0x49 |
+| MAX30102 / SEN0344 | 0x57 |
+| MPU6050 / GY-521 | 0x68 or 0x69 |
+| BME280 | 0x76 or 0x77 |
+
+Current board verification detected BME280, BH1750, MPU6050, and MAX30102. MAX30205 was not detected, so check its VCC, GND, SDA, SCL, and address configuration.
+
+## Test Sketches
+
+Use the folder versions below for Arduino IDE/CLI uploads:
 
 ```text
-GPIO34~GPIO39는 입력 전용으로 사용한다.
-LED, 부저, 진동모터 출력에는 사용하지 않는다.
+HW/TestCode/Sensor/I2C_Seaner/I2C_Seaner.ino
+HW/TestCode/Sensor/BME280/BME280.ino
+HW/TestCode/Sensor/BH1750/BH1750.ino
+HW/TestCode/Sensor/MPU6050/MPU6050.ino
+HW/TestCode/Sensor/MAX30102/MAX30102.ino
+HW/TestCode/Sensor/MAX30205/MAX30205.ino
+HW/TestCode/Module/YwRobot_RGB_LED/YwRobot_RGB_LED.ino
+HW/TestCode/Module/Vibration_Motor/Vibration_Motor.ino
+HW/TestCode/Module/Vibration_Motor_PWM/Vibration_Motor_PWM.ino
+HW/TestCode/Module/Passive_Buzzer/Passive_Buzzer.ino
+HW/TestCode/Integration_Test_Code/Integration_Test_Code.ino
+HW/TestCode/Warning_Integration_Test_Code/Warning_Integration_Test_Code.ino
 ```
 
----
+The older flat `.ino` files are also filled with the same test code for reference, but Arduino CLI compiles most reliably when the sketch folder name matches the `.ino` file name.
 
+<<<<<<< HEAD
 ## 5. Sensor Wiring
 
 ### 5.1 BME280
+=======
+## Recommended Test Order
 
-BME280은 작업자 주변의 온도, 습도, 기압을 측정합니다.
+1. Upload `I2C_Seaner` and confirm visible I2C addresses.
+2. Test each sensor sketch individually.
+3. Upload `Integration_Test_Code` and confirm all connected sensors print values.
+4. Test RGB LED, vibration motor, and buzzer individually.
+5. Upload `Warning_Integration_Test_Code` only after confirming the motor driver and buzzer wiring are safe.
+>>>>>>> b978585 (Sensor Test)
 
-| BME280 | ESP32  |
-| ------ | ------ |
-| VCC    | 3V3    |
-| GND    | GND    |
-| SDA    | GPIO21 |
-| SCL    | GPIO22 |
+## Verified Result
 
-예상 I2C 주소:
+Board: ESP32 Dev Module on COM4.
+
+Compile verification passed for all folder-based sketches listed above.
+
+Sensor integration upload and serial verification passed for:
 
 ```text
-0x76 또는 0x77
+BME280   : temperature, humidity, pressure output OK
+BH1750   : lux output OK
+MPU6050  : accelerometer/gyro output OK
+MAX30102 : RED/IR raw output OK
+MAX30205 : not detected
 ```
 
-사용 목적:
+Example serial output:
 
 ```text
-ENV = 주변 온도
-HUM = 주변 습도
-PRESS = 기압
+[BME280] Temp=26.83 C Humidity=52.01 % Pressure=1000.16 hPa
+[BH1750] Lux=181.67 lx
+[MPU6050] ACC[g] X=0.019 Y=0.930 Z=-0.403
+[MAX30102] RED=566 IR=1357
+[MAX30205] not available
 ```
+<<<<<<< HEAD
 
 주의:
 
@@ -668,3 +728,5 @@ ESP32는 해당 명령에 따라 RGB LED, 진동모터, 부저를 제어합니�
 ```text
 Smart Shield HW는 ESP32 DevKit을 중심으로 BME280, BH1750, MPU6050, MAX30102, MAX30205/Fever Click 센서를 통합하고, 위험도 단계에 따라 RGB LED, 진동모터, 부저로 작업자에게 경고를 제공하는 PPE 웨어러블 하드웨어이다. MLX90614 비접촉 온도센서와 DFPlayer Mini 음성 출력 모듈은 최종 구성에서 제외하며, 피부 접촉 온도는 MAX30205/Fever Click으로 측정하고 청각 경고는 단순 부저로 처리한다.
 ```
+=======
+>>>>>>> b978585 (Sensor Test)

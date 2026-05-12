@@ -1,0 +1,112 @@
+[
+  {
+    "Sourcefile": null,
+    "Include": "",
+    "Includepath": "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\cores\\esp32"
+  },
+  {
+    "Sourcefile": null,
+    "Include": "",
+    "Includepath": "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\variants\\esp32"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "Wire.h",
+    "Includepath": "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\libraries\\Wire\\src"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "Adafruit_Sensor.h",
+    "Includepath": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_Unified_Sensor"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "Adafruit_BME280.h",
+    "Includepath": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_BME280_Library"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "Adafruit_I2CDevice.h",
+    "Includepath": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_BusIO"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "SPI.h",
+    "Includepath": "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\libraries\\SPI\\src"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "BH1750.h",
+    "Includepath": "C:\\Users\\User\\Documents\\Arduino\\libraries\\BH1750\\src"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "MAX30105.h",
+    "Includepath": "C:\\Users\\User\\Documents\\Arduino\\libraries\\SparkFun_MAX3010x_Pulse_and_Proximity_Sensor_Library\\src"
+  },
+  {
+    "Sourcefile": "D:\\HNU\\build\\sketch\\Integration_Test_Code.ino.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\libraries\\Wire\\src\\Wire.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_Unified_Sensor\\Adafruit_Sensor.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_BME280_Library\\Adafruit_BME280.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_BusIO\\Adafruit_BusIO_Register.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_BusIO\\Adafruit_GenericDevice.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_BusIO\\Adafruit_I2CDevice.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\Adafruit_BusIO\\Adafruit_SPIDevice.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\libraries\\SPI\\src\\SPI.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\BH1750\\src\\BH1750.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\SparkFun_MAX3010x_Pulse_and_Proximity_Sensor_Library\\src\\MAX30105.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\SparkFun_MAX3010x_Pulse_and_Proximity_Sensor_Library\\src\\heartRate.cpp",
+    "Include": "",
+    "Includepath": null
+  },
+  {
+    "Sourcefile": "C:\\Users\\User\\Documents\\Arduino\\libraries\\SparkFun_MAX3010x_Pulse_and_Proximity_Sensor_Library\\src\\spo2_algorithm.cpp",
+    "Include": "",
+    "Includepath": null
+  }
+]
