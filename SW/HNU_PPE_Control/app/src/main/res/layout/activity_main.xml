@@ -2,118 +2,477 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:background="@color/ss_bg"
+    android:orientation="vertical">
 
     <TextView
         android:id="@+id/txtTitle"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Smart Shield 작업자 앱"
-        android:textSize="24sp"
+        android:layout_height="88dp"
+        android:background="@color/ss_header"
+        android:gravity="center_vertical"
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp"
+        android:text="SMART SHIELD"
+        android:textColor="#FFFFFF"
+        android:textSize="32sp"
         android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/txtBleState"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="BLE 상태: 대기"
-        android:textSize="17sp" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
-    <TextView
-        android:id="@+id/txtReconnectState"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="재연결 상태: 대기"
-        android:textSize="15sp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="24dp"
+            android:paddingTop="22dp"
+            android:paddingEnd="24dp"
+            android:paddingBottom="28dp">
 
-    <TextView
-        android:id="@+id/txtConnectedDevice"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="연결 장치: 없음"
-        android:textSize="15sp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="62dp"
+                android:background="@drawable/bg_ble_info"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="BLE 상태 : "
+                    android:textColor="@color/ss_blue"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtBleState"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:singleLine="true"
+                    android:text="연결 전"
+                    android:textColor="@color/ss_blue"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="신호 세기 : "
+                        android:textColor="@color/ss_dark"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtBleSignalLevel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:singleLine="true"
+                        android:text="연결 전"
+                        android:textColor="@color/ss_dark"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="작업 위치 : "
+                        android:textColor="@color/ss_dark"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtWorkLocation"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:singleLine="true"
+                        android:text="미선택"
+                        android:textColor="@color/ss_dark"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="작업 시작 : "
+                    android:textColor="@color/ss_dark"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtWorkStartedAt"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:singleLine="true"
+                    android:text="-"
+                    android:textColor="@color/ss_dark"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutRiskCard"
+                android:layout_width="match_parent"
+                android:layout_height="124dp"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/bg_status_normal"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="30dp"
+                android:paddingEnd="24dp">
+
+                <TextView
+                    android:id="@+id/txtRiskState"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="24dp"
+                    android:includeFontPadding="false"
+                    android:text="정상"
+                    android:textColor="#FFFFFF"
+                    android:textSize="44sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtRiskMessage"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="현재 작업 상태가 안정적입니다."
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:text="현재 측정 결과"
+                android:textColor="@color/ss_dark"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:columnCount="2">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="108dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="10dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="14dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="피부온도"
+                        android:textColor="@color/ss_dark"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtTempCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="- ℃"
+                        android:textColor="#111111"
+                        android:textSize="28sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="108dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="14dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="심박수"
+                        android:textColor="@color/ss_dark"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtHrCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="- bpm"
+                        android:textColor="#111111"
+                        android:textSize="28sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="108dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="14dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="SpO2"
+                        android:textColor="@color/ss_dark"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtSpo2Card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="- %"
+                        android:textColor="#111111"
+                        android:textSize="28sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="108dp"
+                    android:layout_columnWeight="1"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/bg_card"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="14dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="환경"
+                        android:textColor="@color/ss_dark"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/txtEnvCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="- ℃ / - %"
+                        android:textColor="#111111"
+                        android:textSize="28sp" />
+                </LinearLayout>
+            </GridLayout>
+
+            <Button
+                android:id="@+id/btnDetailData"
+                android:layout_width="match_parent"
+                android:layout_height="58dp"
+                android:layout_marginTop="22dp"
+                android:background="@drawable/bg_header_button"
+                android:backgroundTint="@null"
+                android:text="상세 데이터 보기"
+                android:textColor="#FFFFFF"
+                android:textSize="21sp"
+                android:textStyle="bold" />
+
+            <!-- 시연용 Fake 데이터 버튼입니다. 연결 팝업에서 활성화한 뒤에만 표시합니다. -->
+            <Button
+                android:id="@+id/btnFakeData"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_header_button"
+                android:backgroundTint="@null"
+                android:text="Fake 데이터 바로 테스트"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="76dp"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/bg_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="현재 지역 날씨 : "
+                    android:textColor="@color/ss_dark"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtWeatherAlert"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:singleLine="true"
+                    android:text="연결 전"
+                    android:textColor="@color/ss_dark"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/txtTodayMaxTemp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="-"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txtWeatherRegion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="미설정"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txtConnectedDevice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="연결 장치 없음"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txtReconnectState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="대기"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txtData"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="센서 데이터 없음"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txtRiskCommand"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="없음"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txtFirebaseState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="대기"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/txtLastUpdate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="없음"
+                android:visibility="gone" />
+
+            <ListView
+                android:id="@+id/listBle"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal">
+        android:layout_height="92dp"
+        android:background="@drawable/bg_bottom_nav"
+        android:gravity="center"
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp">
 
         <Button
             android:id="@+id/btnScan"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="BLE 스캔" />
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:background="@drawable/bg_header_button"
+            android:backgroundTint="@null"
+            android:text="작업 시작"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnDisconnect"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:text="연결 해제" />
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:backgroundTint="@null"
+            android:text="작업 종료"
+            android:visibility="gone" />
     </LinearLayout>
-
-    <Button
-        android:id="@+id/btnFakeData"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Fake 데이터 테스트" />
-
-    <ListView
-        android:id="@+id/listBle"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginTop="8dp" />
-
-    <TextView
-        android:id="@+id/txtData"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="센서 데이터 없음"
-        android:textSize="16sp" />
-
-    <TextView
-        android:id="@+id/txtRiskCommand"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="ESP32 명령: 없음"
-        android:textSize="16sp" />
-
-    <TextView
-        android:id="@+id/txtFirebaseState"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="Firebase 상태: 대기"
-        android:textSize="15sp" />
-
-    <TextView
-        android:id="@+id/txtLastUpdate"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="마지막 업데이트: 없음"
-        android:textSize="15sp" />
-
-    <TextView
-        android:id="@+id/txtRiskState"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:background="#777777"
-        android:gravity="center"
-        android:padding="16dp"
-        android:text="상태: 대기"
-        android:textColor="#FFFFFF"
-        android:textSize="22sp"
-        android:textStyle="bold" />
-
 </LinearLayout>

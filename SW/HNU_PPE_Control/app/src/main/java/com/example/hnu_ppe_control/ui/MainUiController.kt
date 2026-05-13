@@ -1,179 +1,208 @@
-// Smart Shield 작업자 앱의 MainActivity 화면 표시와 버튼 연결을 담당하는 파일
 package com.example.hnu_ppe_control.ui
 
 import android.app.Activity
-import android.graphics.Color
-import android.widget.ArrayAdapter
+import android.view.View
 import android.widget.Button
-import android.widget.ListView
 import android.widget.TextView
 import com.example.hnu_ppe_control.R
-import com.example.hnu_ppe_control.ble.BleManager
+import com.example.hnu_ppe_control.data.BleSignalLevel
 import com.example.hnu_ppe_control.data.RiskLevel
 import com.example.hnu_ppe_control.data.SensorData
+import com.example.hnu_ppe_control.data.WorkSessionState
 
 class MainUiController(
     private val activity: Activity
 ) {
     private val txtBleState: TextView = activity.findViewById(R.id.txtBleState)
+    private val txtBleSignalLevel: TextView = activity.findViewById(R.id.txtBleSignalLevel)
+    private val txtWorkLocation: TextView = activity.findViewById(R.id.txtWorkLocation)
+    private val txtWorkStartedAt: TextView = activity.findViewById(R.id.txtWorkStartedAt)
+    private val layoutRiskCard: View = activity.findViewById(R.id.layoutRiskCard)
+    private val txtRiskState: TextView = activity.findViewById(R.id.txtRiskState)
+    private val txtRiskMessage: TextView = activity.findViewById(R.id.txtRiskMessage)
+    private val txtTempCard: TextView = activity.findViewById(R.id.txtTempCard)
+    private val txtHrCard: TextView = activity.findViewById(R.id.txtHrCard)
+    private val txtSpo2Card: TextView = activity.findViewById(R.id.txtSpo2Card)
+    private val txtEnvCard: TextView = activity.findViewById(R.id.txtEnvCard)
+    private val txtWeatherAlert: TextView = activity.findViewById(R.id.txtWeatherAlert)
+    private val txtTodayMaxTemp: TextView = activity.findViewById(R.id.txtTodayMaxTemp)
+    private val txtWeatherRegion: TextView = activity.findViewById(R.id.txtWeatherRegion)
     private val txtReconnectState: TextView = activity.findViewById(R.id.txtReconnectState)
     private val txtConnectedDevice: TextView = activity.findViewById(R.id.txtConnectedDevice)
     private val txtData: TextView = activity.findViewById(R.id.txtData)
-    private val txtRiskState: TextView = activity.findViewById(R.id.txtRiskState)
     private val txtRiskCommand: TextView = activity.findViewById(R.id.txtRiskCommand)
     private val txtFirebaseState: TextView = activity.findViewById(R.id.txtFirebaseState)
     private val txtLastUpdate: TextView = activity.findViewById(R.id.txtLastUpdate)
-    private val btnScan: Button = activity.findViewById(R.id.btnScan)
+    private val btnWorkToggle: Button = activity.findViewById(R.id.btnScan)
     private val btnDisconnect: Button = activity.findViewById(R.id.btnDisconnect)
     private val btnFakeData: Button = activity.findViewById(R.id.btnFakeData)
-    private val listBle: ListView = activity.findViewById(R.id.listBle)
-
-    private val deviceInfoList = ArrayList<String>()
-    private val deviceAdapter = ArrayAdapter(
-        activity,
-        android.R.layout.simple_list_item_1,
-        deviceInfoList
-    )
-
-    init {
-        // BLE 검색 결과를 ListView에 보여주기 위한 기본 어댑터
-        listBle.adapter = deviceAdapter
-    }
+    private val btnDetailData: Button = activity.findViewById(R.id.btnDetailData)
 
     fun bindActions(
-        onScanClicked: () -> Unit,
+        onWorkButtonClicked: () -> Unit,
         onDisconnectClicked: () -> Unit,
         onFakeDataClicked: () -> Unit,
-        onDeviceClicked: (position: Int) -> Unit
+        onDetailClicked: () -> Unit
     ) {
-        // 버튼과 리스트 클릭 이벤트는 Activity의 흐름 제어 함수로 넘깁니다.
-        btnScan.setOnClickListener { onScanClicked() }
+        btnWorkToggle.setOnClickListener { onWorkButtonClicked() }
         btnDisconnect.setOnClickListener { onDisconnectClicked() }
         btnFakeData.setOnClickListener { onFakeDataClicked() }
-        listBle.setOnItemClickListener { _, _, position, _ -> onDeviceClicked(position) }
+        btnDetailData.setOnClickListener { onDetailClicked() }
     }
 
     fun showDefault(bleAvailable: Boolean) {
-        txtBleState.text = if (bleAvailable) "BLE 상태: 준비 완료" else "BLE 상태: 사용 불가"
-        txtReconnectState.text = "재연결 상태: 대기"
-        txtConnectedDevice.text = "연결 장치: 없음"
+        txtBleState.text = if (bleAvailable) "연결 전" else "사용 불가"
+        txtBleSignalLevel.text = BleSignalLevel.NOT_CONNECTED.label
+        txtWorkLocation.text = "미선택"
+        txtWorkStartedAt.text = "-"
+        txtTempCard.text = "- ℃"
+        txtHrCard.text = "- bpm"
+        txtSpo2Card.text = "- %"
+        txtEnvCard.text = "- ℃ / - %"
+        txtWeatherAlert.text = "연결 전"
+        txtTodayMaxTemp.text = "-"
+        txtWeatherRegion.text = "미설정"
+        txtReconnectState.text = "대기"
+        txtConnectedDevice.text = "연결 장치 없음"
         txtData.text = "센서 데이터 없음"
-        txtRiskCommand.text = "ESP32 명령: 없음"
-        txtFirebaseState.text = "Firebase 상태: 대기"
-        txtLastUpdate.text = "마지막 업데이트: 없음"
+        txtRiskCommand.text = "ESP32 명령 없음"
+        txtFirebaseState.text = "Firebase 대기"
+        txtLastUpdate.text = "없음"
+        showFakeDataButton(false)
         showRisk(RiskLevel.SAFE)
+        updateWorkSessionState(WorkSessionState.IDLE)
     }
 
-    fun showBleStatus(message: String) {
+    fun showFakeDataButton(visible: Boolean) {
         activity.runOnUiThread {
-            txtBleState.text = message
+            btnFakeData.visibility = if (visible) View.VISIBLE else View.GONE
         }
     }
 
-    fun showReconnectStatus(message: String) {
+    fun updateWorkSessionState(state: WorkSessionState) {
         activity.runOnUiThread {
-            txtReconnectState.text = message
+            btnWorkToggle.text = when (state) {
+                WorkSessionState.IDLE,
+                WorkSessionState.ENDED -> "작업 시작"
+                WorkSessionState.CONNECTING -> "연결 시도 중"
+                WorkSessionState.WORKING,
+                WorkSessionState.RECONNECTING -> "작업 종료"
+            }
+            btnWorkToggle.isEnabled = true
+        }
+    }
+
+    fun showBleState(value: String) {
+        activity.runOnUiThread { txtBleState.text = value }
+    }
+
+    fun showBleSignal(level: BleSignalLevel) {
+        activity.runOnUiThread { txtBleSignalLevel.text = level.label }
+    }
+
+    fun showWorkLocation(name: String?) {
+        activity.runOnUiThread { txtWorkLocation.text = name?.takeIf { it.isNotBlank() } ?: "미선택" }
+    }
+
+    fun showWorkStartedAt(value: String?) {
+        activity.runOnUiThread { txtWorkStartedAt.text = value?.takeIf { it.isNotBlank() } ?: "-" }
+    }
+
+    fun showWeather(alert: String, todayMaxTemp: Double?, region: String) {
+        activity.runOnUiThread {
+            txtWeatherAlert.text = alert
+            txtTodayMaxTemp.text = todayMaxTemp?.let { "%.1f ℃".format(it) } ?: "-"
+            txtWeatherRegion.text = region
         }
     }
 
     fun showConnectedDevice(deviceName: String, address: String) {
-        activity.runOnUiThread {
-            txtConnectedDevice.text = "연결 장치: $deviceName / $address"
-        }
+        activity.runOnUiThread { txtConnectedDevice.text = "$deviceName / $address" }
     }
 
     fun showNoConnectedDevice() {
-        activity.runOnUiThread {
-            txtConnectedDevice.text = "연결 장치: 없음"
-        }
+        activity.runOnUiThread { txtConnectedDevice.text = "연결 장치 없음" }
     }
 
-    fun clearScanList() {
-        deviceInfoList.clear()
-        deviceAdapter.notifyDataSetChanged()
+    fun showReconnectStatus(message: String) {
+        activity.runOnUiThread { txtReconnectState.text = message }
     }
 
-    fun addDevice(deviceInfo: BleManager.BleDeviceInfo) {
-        // BLE 스캔 결과는 작업자가 선택할 수 있도록 이름과 주소를 같이 표시합니다.
-        deviceInfoList.add("이름: ${deviceInfo.name}\n주소: ${deviceInfo.address}")
-        deviceAdapter.notifyDataSetChanged()
-    }
-
-    fun showSensorData(
-        sensorData: SensorData,
-        riskLevel: RiskLevel,
-        formattedTime: String
-    ) {
-        val display = """
+    fun showSensorData(sensorData: SensorData, riskLevel: RiskLevel, formattedTime: String) {
+        val detailText = """
             workerId: ${sensorData.id}
-            TEMP 피부 온도: ${sensorData.temp}
+            TEMP 피부온도: ${sensorData.temp}
             HR 심박수: ${sensorData.hr}
-            SPO2 산소포화도: ${sensorData.spo2?.toString() ?: "없음"}
+            SPO2 산소포화도: ${sensorData.spo2?.toString() ?: "-"}
             ENV 주변 온도: ${sensorData.env}
             HUM 습도: ${sensorData.hum}
             LUX 조도: ${sensorData.lux}
-            직사광선 추정: ${if (sensorData.directSunlight) "예" else "아니오"}
             POSTURE 자세: ${sensorData.posture}
             위험 단계: ${riskLevel.label}
         """.trimIndent()
 
         activity.runOnUiThread {
-            txtData.text = display
-            txtLastUpdate.text = "마지막 업데이트: $formattedTime"
+            txtTempCard.text = "%.1f ℃".format(sensorData.temp)
+            txtHrCard.text = "${sensorData.hr} bpm"
+            txtSpo2Card.text = sensorData.spo2?.let { "$it %" } ?: "-"
+            txtEnvCard.text = "%.1f ℃ / %d %%".format(sensorData.env, sensorData.hum)
+            txtData.text = detailText
+            txtLastUpdate.text = formattedTime
         }
     }
 
     fun showRisk(riskLevel: RiskLevel) {
         activity.runOnUiThread {
-            txtRiskState.text = "상태: ${riskLevel.label}"
-            txtRiskState.setBackgroundColor(Color.parseColor(colorForRisk(riskLevel)))
+            txtRiskState.text = riskLevel.label
+            txtRiskMessage.text = riskMessageFor(riskLevel)
+            layoutRiskCard.setBackgroundResource(backgroundForRisk(riskLevel))
         }
     }
 
     fun showRiskCommand(command: String) {
-        activity.runOnUiThread {
-            txtRiskCommand.text = "ESP32 명령: $command"
-        }
+        activity.runOnUiThread { txtRiskCommand.text = command }
     }
 
     fun showWriteResult(command: String, started: Boolean, reason: String?) {
         activity.runOnUiThread {
             txtRiskCommand.text = when {
-                started -> "ESP32 명령: $command 전송 시작"
-                command.isBlank() -> "ESP32 명령: Write 특성 없음"
-                reason == "duplicate" -> "ESP32 명령: $command 중복 생략"
-                else -> "ESP32 명령: $command 전송 실패($reason)"
+                started -> "$command 전송 시작"
+                command.isBlank() -> "Write 특성 없음"
+                reason == "duplicate" -> "$command 중복 생략"
+                else -> "$command 전송 실패($reason)"
             }
         }
     }
 
     fun showFirebaseState(message: String) {
-        activity.runOnUiThread {
-            txtFirebaseState.text = message
-        }
+        activity.runOnUiThread { txtFirebaseState.text = message }
     }
 
     fun showParseError(rawData: String) {
         activity.runOnUiThread {
-            txtData.text = """
-                데이터 파싱 오류
-
-                수신 원본:
-                $rawData
-            """.trimIndent()
-            txtRiskState.text = "상태: 오류"
-            txtRiskState.setBackgroundColor(Color.parseColor("#777777"))
-            txtFirebaseState.text = "Firebase 상태: 파싱 실패로 업로드 안 함"
+            txtData.text = "센서 데이터 확인 필요\n$rawData"
+            showRisk(RiskLevel.ERROR)
+            txtFirebaseState.text = "파싱 실패로 업로드 생략"
         }
     }
 
-    private fun colorForRisk(riskLevel: RiskLevel): String {
+    private fun riskMessageFor(riskLevel: RiskLevel): String {
         return when (riskLevel) {
-            RiskLevel.SAFE -> "#2E7D32"
-            RiskLevel.CAUTION -> "#F9A825"
-            RiskLevel.DANGER -> "#D32F2F"
-            RiskLevel.EMERGENCY -> "#B71C1C"
-            RiskLevel.ERROR -> "#777777"
+            RiskLevel.SAFE -> "현재 작업 상태가 안정적입니다."
+            RiskLevel.CAUTION -> "수분 섭취와 휴식을 권장합니다."
+            RiskLevel.DANGER -> "위험 상태가 감지되었습니다. 즉시 휴식하세요."
+            RiskLevel.EMERGENCY -> "응급 상태가 감지되었습니다. 즉시 도움을 요청하세요."
+            RiskLevel.ERROR -> "센서 데이터 확인이 필요합니다."
+        }
+    }
+
+    private fun backgroundForRisk(riskLevel: RiskLevel): Int {
+        return when (riskLevel) {
+            RiskLevel.SAFE -> R.drawable.bg_status_normal
+            RiskLevel.CAUTION -> R.drawable.bg_status_warning
+            RiskLevel.DANGER,
+            RiskLevel.EMERGENCY -> R.drawable.bg_status_danger
+            RiskLevel.ERROR -> R.drawable.bg_status_error
         }
     }
 }

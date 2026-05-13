@@ -37,6 +37,7 @@ class BleManager(
         fun onNotifyReady()
         fun onDataReceived(rawData: String)
         fun onWriteResult(command: String, started: Boolean, reason: String?)
+        fun onRssiUpdated(rssi: Int)
     }
 
     data class BleDeviceInfo(
@@ -52,6 +53,7 @@ class BleManager(
         private const val UNSTABLE_TIMEOUT_MS = 10 * 1000L
         private const val OFFLINE_TIMEOUT_MS = 30 * 1000L
         private const val REQUESTED_MTU = 128
+        private const val RSSI_READ_INTERVAL_MS = 5000L
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -67,6 +69,7 @@ class BleManager(
     private var reconnectStartTime = 0L
     private var lastDataReceivedTime = 0L
     private var isOfflineCheckerRunning = false
+    private var isRssiReaderRunning = false
     private var lastConnectedDevice: BluetoothDevice? = null
     private var lastSentRiskCommand: String? = null
     private val notifyBuffer = StringBuilder()
@@ -90,16 +93,16 @@ class BleManager(
         bluetoothLeScanner = bluetoothAdapter?.bluetoothLeScanner
 
         if (bluetoothLeScanner == null) {
-            listener.onBleStatusChanged("BLE 상태: 스캐너 사용 불가")
+            listener.onBleStatusChanged("사용 불가")
             Log.e(TAG, "BLE scanner is null")
             return
         }
         if (isScanning) {
-            listener.onBleStatusChanged("BLE 상태: 이미 스캔 중")
+            listener.onBleStatusChanged("스캔 중")
             return
         }
         if (!BlePermissionHelper.hasScanPermission(context)) {
-            listener.onBleStatusChanged("BLE 상태: 스캔 권한 없음")
+            listener.onBleStatusChanged("스캔 권한 없음")
             return
         }
 
@@ -111,7 +114,7 @@ class BleManager(
         } catch (e: SecurityException) {
             isScanning = false
             Log.e(TAG, "startScan failed by permission", e)
-            listener.onBleStatusChanged("BLE 상태: 스캔 권한 오류")
+            listener.onBleStatusChanged("스캔 권한 오류")
             return
         }
 
@@ -139,7 +142,7 @@ class BleManager(
     fun connect(device: BluetoothDevice) {
         stopScan()
         if (!BlePermissionHelper.hasConnectPermission(context)) {
-            listener.onBleStatusChanged("BLE 상태: 연결 권한 없음")
+            listener.onBleStatusChanged("연결 권한 없음")
             return
         }
 
@@ -152,7 +155,7 @@ class BleManager(
         connectedDeviceAddress = address
         connectedDeviceName = name
 
-        listener.onBleStatusChanged("BLE 상태: 연결 시도 중")
+        listener.onBleStatusChanged("연결 시도 중")
         Log.d(TAG, "Connecting to device: $address / $name")
 
         try {
@@ -161,7 +164,7 @@ class BleManager(
             bluetoothGatt = device.connectGatt(context, false, gattCallback)
         } catch (e: SecurityException) {
             Log.e(TAG, "connectGatt failed by permission", e)
-            listener.onBleStatusChanged("BLE 상태: 연결 권한 오류")
+            listener.onBleStatusChanged("연결 권한 오류")
         }
     }
 
@@ -169,6 +172,7 @@ class BleManager(
         isManualDisconnect = true
         stopReconnect()
         stopOfflineChecker()
+        stopRssiReader()
 
         try {
             if (BlePermissionHelper.hasConnectPermission(context)) {
@@ -219,6 +223,7 @@ class BleManager(
         stopScan()
         stopReconnect()
         stopOfflineChecker()
+        stopRssiReader()
         closeGatt()
         resetConnectionFlags()
         lastConnectedDevice = null
@@ -283,6 +288,13 @@ class BleManager(
             super.onCharacteristicChanged(gatt, characteristic, value)
             handleNotifyValue(characteristic, value)
         }
+
+        override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
+            super.onReadRemoteRssi(gatt, rssi, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                listener.onRssiUpdated(rssi)
+            }
+        }
     }
 
     private fun handleGattConnected(gatt: BluetoothGatt) {
@@ -294,10 +306,11 @@ class BleManager(
 
         stopReconnect()
         startOfflineChecker()
+        startRssiReader()
         listener.onConnected(connectedDeviceName, connectedDeviceAddress ?: "")
 
         if (!BlePermissionHelper.hasConnectPermission(context)) {
-            listener.onBleStatusChanged("BLE 상태: 서비스 탐색 권한 없음")
+            listener.onBleStatusChanged("서비스 탐색 권한 없음")
             return
         }
         requestMtuBeforeServiceDiscovery(gatt)
@@ -333,6 +346,7 @@ class BleManager(
         isNotifyReady = false
         lastSentRiskCommand = null
         notifyBuffer.clear()
+        stopRssiReader()
         listener.onDisconnected(manual = isManualDisconnect)
 
         if (isManualDisconnect) {
@@ -347,7 +361,7 @@ class BleManager(
         if (status != BluetoothGatt.GATT_SUCCESS) {
             isServiceDiscovered = false
             isNotifyReady = false
-            listener.onBleStatusChanged("BLE 상태: 서비스 탐색 실패")
+            listener.onBleStatusChanged("서비스 탐색 실패")
             return
         }
 
@@ -356,13 +370,13 @@ class BleManager(
         val writeCharacteristic = service?.getCharacteristic(BleConstants.CONTROL_CHARACTERISTIC_UUID)
 
         if (service == null) {
-            listener.onBleStatusChanged("BLE 상태: 대상 서비스 없음")
+            listener.onBleStatusChanged("대상 서비스 없음")
             return
         }
         isServiceDiscovered = true
 
         if (notifyCharacteristic == null) {
-            listener.onBleStatusChanged("BLE 상태: Notify 특성 없음")
+            listener.onBleStatusChanged("Notify 특성 없음")
             return
         }
         if (writeCharacteristic == null) {
@@ -374,7 +388,7 @@ class BleManager(
 
     private fun enableNotify(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
         if (!BlePermissionHelper.hasConnectPermission(context)) {
-            listener.onBleStatusChanged("BLE 상태: Notify 권한 없음")
+            listener.onBleStatusChanged("Notify 권한 없음")
             return
         }
 
@@ -388,19 +402,20 @@ class BleManager(
         val descriptor = characteristic.getDescriptor(BleConstants.CLIENT_CHARACTERISTIC_CONFIG_UUID)
         if (descriptor == null) {
             isNotifyReady = false
-            listener.onBleStatusChanged("BLE 상태: CCCD 없음")
+            listener.onBleStatusChanged("CCCD 없음")
             return
         }
 
         val descriptorWriteStarted = writeNotifyDescriptor(gatt, descriptor)
         isNotifyReady = notifyEnabled && descriptorWriteStarted
-        if (isNotifyReady) listener.onNotifyReady() else listener.onBleStatusChanged("BLE 상태: Notify 설정 실패")
+        if (isNotifyReady) listener.onNotifyReady() else listener.onBleStatusChanged("Notify 설정 실패")
     }
 
     private fun handleNotifyValue(characteristic: BluetoothGattCharacteristic, value: ByteArray?) {
         if (characteristic.uuid != BleConstants.DATA_CHARACTERISTIC_UUID) return
         val rawData = String(value ?: return, StandardCharsets.UTF_8)
         lastDataReceivedTime = System.currentTimeMillis()
+        requestRemoteRssi()
         Log.d(TAG, "Notify chunk received: $rawData")
         handleNotifyChunk(rawData)
     }
@@ -482,7 +497,7 @@ class BleManager(
         if (lastConnectedDevice == null || isReconnecting) return
         isReconnecting = true
         reconnectStartTime = System.currentTimeMillis()
-        listener.onReconnectStatusChanged("재연결 상태: 시도 중")
+        listener.onReconnectStatusChanged("재연결 중")
         mainHandler.post(reconnectRunnable)
     }
 
@@ -526,12 +541,42 @@ class BleManager(
             val elapsed = System.currentTimeMillis() - lastDataReceivedTime
 
             when {
-                elapsed >= OFFLINE_TIMEOUT_MS -> listener.onBleStatusChanged("BLE 상태: 데이터 오프라인")
-                elapsed >= UNSTABLE_TIMEOUT_MS -> listener.onBleStatusChanged("BLE 상태: 데이터 수신 불안정")
-                isNotifyReady -> listener.onBleStatusChanged("BLE 상태: 데이터 수신 중")
+                elapsed >= OFFLINE_TIMEOUT_MS -> listener.onBleStatusChanged("연결 끊김")
+                elapsed >= UNSTABLE_TIMEOUT_MS -> listener.onBleStatusChanged("수신 불안정")
+                isNotifyReady -> listener.onBleStatusChanged("연결됨")
             }
 
             mainHandler.postDelayed(this, 1000L)
+        }
+    }
+
+    private fun startRssiReader() {
+        if (isRssiReaderRunning) return
+        isRssiReaderRunning = true
+        mainHandler.post(rssiRunnable)
+    }
+
+    private fun stopRssiReader() {
+        isRssiReaderRunning = false
+        mainHandler.removeCallbacks(rssiRunnable)
+    }
+
+    private val rssiRunnable = object : Runnable {
+        override fun run() {
+            if (!isRssiReaderRunning) return
+            requestRemoteRssi()
+            mainHandler.postDelayed(this, RSSI_READ_INTERVAL_MS)
+        }
+    }
+
+    private fun requestRemoteRssi() {
+        // 향후 RSSI 정책 변경이 필요하면 이 위치에서 읽기 주기와 실패 처리를 조정합니다.
+        val gatt = bluetoothGatt ?: return
+        if (!isBleConnected || !BlePermissionHelper.hasConnectPermission(context)) return
+        try {
+            gatt.readRemoteRssi()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "readRemoteRssi failed", e)
         }
     }
 

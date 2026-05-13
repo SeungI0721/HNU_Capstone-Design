@@ -1,10 +1,19 @@
 package com.example.hnu_ppe_control
 
 import android.Manifest
+import android.app.AlertDialog
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.LayoutInflater
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.ListView
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -13,8 +22,12 @@ import com.example.hnu_ppe_control.alert.AlertManager
 import com.example.hnu_ppe_control.ble.BleConstants
 import com.example.hnu_ppe_control.ble.BleManager
 import com.example.hnu_ppe_control.ble.BlePermissionHelper
+import com.example.hnu_ppe_control.data.BleSignalLevel
 import com.example.hnu_ppe_control.data.RiskLevel
 import com.example.hnu_ppe_control.data.SensorData
+import com.example.hnu_ppe_control.data.WeatherSnapshot
+import com.example.hnu_ppe_control.data.WorkLocation
+import com.example.hnu_ppe_control.data.WorkSessionState
 import com.example.hnu_ppe_control.firebase.FirebaseStatusUploader
 import com.example.hnu_ppe_control.firebase.RiskLogPolicy
 import com.example.hnu_ppe_control.parser.SensorDataParser
@@ -26,6 +39,7 @@ import com.example.hnu_ppe_control.ui.MainUiController
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 class MainActivity : AppCompatActivity(), BleManager.Listener {
 
@@ -41,10 +55,28 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     private lateinit var foregroundServiceController: ForegroundServiceController
 
     private val foundDeviceList = ArrayList<BleManager.BleDeviceInfo>()
+    private var dialogDeviceAdapter: ArrayAdapter<String>? = null
+    private var dialogStatusText: TextView? = null
+    private var dialogConnectButton: Button? = null
+    private var dialogSelectedDeviceIndex = -1
+    private var pendingWorkLocation: WorkLocation? = null
+    private var connectDialog: AlertDialog? = null
+
     private var appSessionActive = false
+    private var workSessionState = WorkSessionState.IDLE
+    private var selectedWorkLocation: WorkLocation? = null
+    private var workStartedAtMillis: Long? = null
+    private var workEndedAtMillis: Long? = null
+    private var baselinePosture: String? = null
+    private var bleSignalLevel = BleSignalLevel.NOT_CONNECTED
+    private var bleRssi: Int? = null
+    private var currentBleState = "연결 전"
+    private var weatherSnapshot = WeatherSnapshot()
     private var lastSensorData: SensorData? = null
     private var lastRiskLevel: RiskLevel = RiskLevel.SAFE
     private var lastRiskCommand: String = "RISK:SAFE"
+    private var lastUpdatedAt: String = "-"
+    private var fakeTestMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +84,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         initManagers()
         initUi()
         requestNotificationPermissionIfNeeded()
+        prepareWeatherPlaceholder()
     }
 
     private fun initManagers() {
@@ -65,111 +98,299 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         ui = MainUiController(this)
         ui.showDefault(bleManager.isBluetoothAvailable())
         ui.bindActions(
-            onScanClicked = { handleScanClicked() },
-            onDisconnectClicked = { handleDisconnectClicked() },
+            onWorkButtonClicked = { handleWorkButtonClicked() },
+            onDisconnectClicked = { showEndWorkDialog() },
             onFakeDataClicked = { handleFakeDataClicked() },
-            onDeviceClicked = { position -> handleDeviceClicked(position) }
+            onDetailClicked = { openWorkerDetail() }
         )
     }
 
-    private fun handleScanClicked() {
+    private fun handleWorkButtonClicked() {
+        when (workSessionState) {
+            WorkSessionState.IDLE,
+            WorkSessionState.ENDED -> showBleConnectDialog()
+            WorkSessionState.CONNECTING -> Toast.makeText(this, "이미 연결을 시도하고 있습니다.", Toast.LENGTH_SHORT).show()
+            WorkSessionState.WORKING,
+            WorkSessionState.RECONNECTING -> showEndWorkDialog()
+        }
+    }
+
+    private fun showBleConnectDialog() {
+        val canScan = ensureBleReady(requestPermission = true)
+
+        foundDeviceList.clear()
+        dialogSelectedDeviceIndex = -1
+        pendingWorkLocation = null
+
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_ble_connect, null)
+        val locationGroup: RadioGroup = dialogView.findViewById(R.id.groupWorkLocation)
+        val listDialogBle: ListView = dialogView.findViewById(R.id.listDialogBle)
+        val btnDialogFakeData: Button = dialogView.findViewById(R.id.btnDialogFakeData)
+        dialogStatusText = dialogView.findViewById(R.id.txtDialogStatus)
+
+        WorkLocation.OPTIONS.forEachIndexed { index, location ->
+            val radioButton = RadioButton(this)
+            radioButton.id = index + 1
+            radioButton.text = location.name
+            radioButton.textSize = 17f
+            locationGroup.addView(radioButton)
+        }
+
+        dialogDeviceAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_single_choice, ArrayList<String>())
+        listDialogBle.adapter = dialogDeviceAdapter
+        listDialogBle.choiceMode = ListView.CHOICE_MODE_SINGLE
+
+        locationGroup.setOnCheckedChangeListener { _, checkedId ->
+            pendingWorkLocation = WorkLocation.OPTIONS.getOrNull(checkedId - 1)
+            updateDialogConnectEnabled()
+        }
+        listDialogBle.setOnItemClickListener { _, _, position, _ ->
+            dialogSelectedDeviceIndex = position
+            updateDialogConnectEnabled()
+        }
+        btnDialogFakeData.setOnClickListener { enableFakeDataButtonFromDialog() }
+
+        connectDialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setNegativeButton("취소") { dialog, _ ->
+                bleManager.stopScan()
+                dialog.dismiss()
+            }
+            .setPositiveButton("연결", null)
+            .create()
+
+        connectDialog?.setOnShowListener { dialogInterface ->
+            val dialog = dialogInterface as AlertDialog
+            dialogConnectButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            dialogConnectButton?.isEnabled = false
+            dialogConnectButton?.setOnClickListener { connectSelectedDevice() }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(ContextCompat.getColor(this, R.color.ss_header))
+            dialogConnectButton?.setTextColor(ContextCompat.getColor(this, R.color.ss_header))
+            startDialogScan(canScan)
+        }
+        connectDialog?.setOnDismissListener {
+            dialogDeviceAdapter = null
+            dialogStatusText = null
+            dialogConnectButton = null
+            connectDialog = null
+        }
+        connectDialog?.show()
+    }
+
+    private fun enableFakeDataButtonFromDialog() {
+        fakeTestMode = true
+        pendingWorkLocation?.let { selectedWorkLocation = it }
+        selectedWorkLocation?.let { ui.showWorkLocation(it.name) }
+        bleManager.stopScan()
+        connectDialog?.dismiss()
+        ui.showFakeDataButton(true)
+        Toast.makeText(this, "Fake 데이터 테스트 버튼이 활성화되었습니다.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun ensureBleReady(requestPermission: Boolean = true): Boolean {
         if (!BlePermissionHelper.hasBlePermission(this)) {
-            BlePermissionHelper.requestBlePermission(this)
-            return
+            if (requestPermission) BlePermissionHelper.requestBlePermission(this)
+            dialogStatusText?.text = "BLE 권한이 필요합니다."
+            return false
         }
         if (!bleManager.isBluetoothAvailable()) {
-            Toast.makeText(this, "블루투스를 지원하지 않는 기기입니다.", Toast.LENGTH_SHORT).show()
-            return
+            Toast.makeText(this, "BLE를 사용할 수 없는 기기입니다.", Toast.LENGTH_SHORT).show()
+            return false
         }
         if (!bleManager.isBluetoothEnabled()) {
             Toast.makeText(this, "블루투스를 먼저 켜주세요.", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        return true
+    }
+
+    private fun startDialogScan(canScan: Boolean) {
+        setWorkSessionState(WorkSessionState.IDLE)
+        if (!canScan) {
+            dialogStatusText?.text = "BLE 권한이 필요합니다. 권한 허용 후 작업 시작을 다시 눌러주세요."
             return
         }
-
-        foundDeviceList.clear()
-        ui.clearScanList()
+        dialogStatusText?.text = "주변 Smart Shield 기기를 검색 중입니다."
         bleManager.startScan()
     }
 
-    private fun handleDisconnectClicked() {
+    private fun updateDialogConnectEnabled() {
+        val hasLocation = pendingWorkLocation != null
+        val hasDevice = dialogSelectedDeviceIndex in foundDeviceList.indices
+        dialogConnectButton?.isEnabled = hasLocation && hasDevice
+        dialogStatusText?.text = when {
+            !hasLocation && !hasDevice -> "작업 위치와 BLE 기기를 선택하세요."
+            !hasLocation -> "작업 위치를 선택하세요."
+            !hasDevice -> "BLE 기기를 선택하세요."
+            else -> "연결할 준비가 되었습니다."
+        }
+    }
+
+    private fun connectSelectedDevice() {
+        if (!ensureBleReady()) return
+        val location = pendingWorkLocation ?: return
+        val deviceInfo = foundDeviceList.getOrNull(dialogSelectedDeviceIndex) ?: return
+
+        selectedWorkLocation = location
+        workStartedAtMillis = null
+        workEndedAtMillis = null
+        baselinePosture = null
         appSessionActive = false
+        fakeTestMode = false
+        bleSignalLevel = BleSignalLevel.DISCONNECTED
+        bleRssi = null
+
+        ui.showWorkLocation(location.name)
+        ui.showWorkStartedAt(null)
+        ui.showBleSignal(bleSignalLevel)
+        setWorkSessionState(WorkSessionState.CONNECTING)
+        currentBleState = "연결 시도 중"
+        ui.showBleState(currentBleState)
+
+        connectDialog?.dismiss()
+        bleManager.connect(deviceInfo.device)
+    }
+
+    private fun showEndWorkDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("작업을 종료하시겠습니까?")
+            .setMessage("작업을 종료하면 BLE 연결이 해제되고 현재 작업 세션이 종료됩니다.")
+            .setNegativeButton("취소", null)
+            .setPositiveButton("작업 종료") { _, _ -> endWorkManually() }
+            .show()
+    }
+
+    private fun endWorkManually() {
+        appSessionActive = false
+        workEndedAtMillis = System.currentTimeMillis()
         bleManager.disconnectManually()
         foregroundServiceController.stop()
+        currentBleState = "연결 끊김"
+        bleSignalLevel = BleSignalLevel.DISCONNECTED
+        bleRssi = null
+        uploadLastStatus(bleConnected = false, appSessionActive = false)
+        ui.showBleState(currentBleState)
+        ui.showBleSignal(bleSignalLevel)
+        setWorkSessionState(WorkSessionState.ENDED)
     }
 
     private fun handleFakeDataClicked() {
+        if (selectedWorkLocation == null) selectedWorkLocation = WorkLocation.OPTIONS.first()
+        fakeTestMode = true
         appSessionActive = true
-        foregroundServiceController.startIfAllowed()
+        if (workStartedAtMillis == null) workStartedAtMillis = System.currentTimeMillis()
+        workEndedAtMillis = null
+        currentBleState = "연결 전"
+        bleSignalLevel = BleSignalLevel.NOT_CONNECTED
+        bleRssi = null
+
+        ui.showWorkLocation(selectedWorkLocation?.name)
+        ui.showWorkStartedAt(formatMillis(workStartedAtMillis))
+        ui.showBleState(currentBleState)
+        ui.showBleSignal(bleSignalLevel)
+        setWorkSessionState(WorkSessionState.WORKING)
 
         val fakeData = FakeSensorDataProvider.randomPayload()
         Log.d(TAG, "Fake data generated: $fakeData")
         handleReceivedData(fakeData)
     }
 
-    private fun handleDeviceClicked(position: Int) {
-        if (position < 0 || position >= foundDeviceList.size) return
-        appSessionActive = true
-        foregroundServiceController.startIfAllowed()
-        bleManager.connect(foundDeviceList[position].device)
-    }
-
     override fun onScanStarted() {
-        ui.showBleStatus("BLE 상태: 스캔 중")
-        ui.showReconnectStatus("재연결 상태: 대기")
+        currentBleState = "연결 전"
+        ui.showBleState(currentBleState)
+        ui.showReconnectStatus("스캔 중")
         ui.showNoConnectedDevice()
     }
 
     override fun onScanStopped() {
-        ui.showBleStatus("BLE 상태: 스캔 종료")
+        dialogStatusText?.text = if (foundDeviceList.isEmpty()) "검색된 Smart Shield 기기가 없습니다." else "기기를 선택하세요."
     }
 
     override fun onScanFailed(errorCode: Int) {
-        ui.showBleStatus("BLE 상태: 스캔 실패($errorCode)")
+        currentBleState = "연결 전"
+        ui.showBleState(currentBleState)
+        dialogStatusText?.text = "BLE 스캔 실패($errorCode)"
     }
 
     override fun onDeviceFound(deviceInfo: BleManager.BleDeviceInfo) {
         runOnUiThread {
             if (foundDeviceList.any { it.address == deviceInfo.address }) return@runOnUiThread
             foundDeviceList.add(deviceInfo)
-            ui.addDevice(deviceInfo)
+            dialogDeviceAdapter?.add("${deviceInfo.name}\n${deviceInfo.address}")
+            dialogDeviceAdapter?.notifyDataSetChanged()
+            dialogStatusText?.text = "기기를 선택하세요."
         }
     }
 
     override fun onBleStatusChanged(message: String) {
-        ui.showBleStatus(message)
+        currentBleState = normalizeBleState(message)
+        ui.showBleState(currentBleState)
+        if (currentBleState == "연결 끊김") {
+            bleSignalLevel = BleSignalLevel.DISCONNECTED
+            ui.showBleSignal(bleSignalLevel)
+        }
     }
 
     override fun onReconnectStatusChanged(message: String) {
         ui.showReconnectStatus(message)
+        if (message.contains("재연결")) {
+            setWorkSessionState(WorkSessionState.RECONNECTING)
+            currentBleState = "재연결 중"
+            ui.showBleState(currentBleState)
+        }
     }
 
     override fun onConnected(deviceName: String, address: String) {
         appSessionActive = true
+        if (workStartedAtMillis == null) workStartedAtMillis = System.currentTimeMillis()
+        workEndedAtMillis = null
         foregroundServiceController.startIfAllowed()
-        ui.showBleStatus("BLE 상태: 연결 성공")
-        ui.showReconnectStatus("재연결 상태: 대기")
+
+        currentBleState = "연결됨"
+        bleSignalLevel = BleSignalLevel.NORMAL
+        ui.showBleState(currentBleState)
+        ui.showBleSignal(bleSignalLevel)
+        ui.showReconnectStatus("대기")
         ui.showConnectedDevice(deviceName, address)
+        ui.showWorkStartedAt(formatMillis(workStartedAtMillis))
+        setWorkSessionState(WorkSessionState.WORKING)
     }
 
     override fun onDisconnected(manual: Boolean) {
         appSessionActive = !manual
+        currentBleState = if (manual) "연결 끊김" else "재연결 중"
+        bleSignalLevel = BleSignalLevel.DISCONNECTED
+        bleRssi = null
         uploadLastStatus(bleConnected = false, appSessionActive = appSessionActive)
-        ui.showBleStatus(if (manual) "BLE 상태: 수동 연결 해제" else "BLE 상태: 연결 끊김")
-        ui.showReconnectStatus(if (manual) "재연결 상태: 중지" else "재연결 상태: 시도 중")
-        if (manual) foregroundServiceController.stop()
+        ui.showBleState(currentBleState)
+        ui.showBleSignal(bleSignalLevel)
+        ui.showReconnectStatus(if (manual) "중지" else "재연결 중")
+        if (manual) {
+            foregroundServiceController.stop()
+            setWorkSessionState(WorkSessionState.ENDED)
+        } else {
+            setWorkSessionState(WorkSessionState.RECONNECTING)
+        }
     }
 
     override fun onReconnectFailed() {
         appSessionActive = false
+        workEndedAtMillis = System.currentTimeMillis()
+        currentBleState = "재연결 실패"
+        bleSignalLevel = BleSignalLevel.DISCONNECTED
+        bleRssi = null
         uploadLastStatus(bleConnected = false, appSessionActive = false)
-        ui.showBleStatus("BLE 상태: 재연결 실패")
-        ui.showReconnectStatus("재연결 상태: 10분 초과, 세션 종료")
+        ui.showBleState(currentBleState)
+        ui.showBleSignal(bleSignalLevel)
+        ui.showReconnectStatus("재연결 실패")
         ui.showNoConnectedDevice()
         foregroundServiceController.stop()
+        setWorkSessionState(WorkSessionState.ENDED)
     }
 
     override fun onNotifyReady() {
-        ui.showBleStatus("BLE 상태: Notify 수신 준비 완료")
+        currentBleState = "연결됨"
+        ui.showBleState(currentBleState)
         ui.showRiskCommand("Write 준비 완료")
     }
 
@@ -179,6 +400,12 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
 
     override fun onWriteResult(command: String, started: Boolean, reason: String?) {
         ui.showWriteResult(command, started, reason)
+    }
+
+    override fun onRssiUpdated(rssi: Int) {
+        bleRssi = rssi
+        bleSignalLevel = BleSignalLevel.fromRssi(rssi)
+        ui.showBleSignal(bleSignalLevel)
     }
 
     private fun handleReceivedData(rawData: String) {
@@ -198,12 +425,16 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
 
         val riskLevel = HeatstrokeAnalyzer.analyze(sensorData)
         val command = RiskCommandMapper.toCommand(riskLevel)
+        lastUpdatedAt = formatNow()
 
         lastSensorData = sensorData
         lastRiskLevel = riskLevel
         lastRiskCommand = command
 
-        ui.showSensorData(sensorData, riskLevel, formatNow())
+        // 작업 시작 직후 정상 자세 기준값으로 사용합니다.
+        if (baselinePosture == null) baselinePosture = sensorData.posture
+
+        ui.showSensorData(sensorData, riskLevel, lastUpdatedAt)
         ui.showRisk(riskLevel)
         ui.showRiskCommand(command)
 
@@ -214,7 +445,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     }
 
     private fun uploadCurrentStatus(sensorData: SensorData, riskLevel: RiskLevel, command: String) {
-        ui.showFirebaseState("Firebase 상태: currentStatus 업로드 중")
+        ui.showFirebaseState("currentStatus 업로드 중")
         FirebaseStatusUploader.uploadCurrentStatus(
             workerId = sensorData.id,
             deviceName = bleManager.connectedDeviceName,
@@ -228,9 +459,21 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             riskLevel = riskLevel.label,
             riskCommand = command,
             bleConnected = bleManager.isBleConnected,
-            appSessionActive = appSessionActive
+            appSessionActive = appSessionActive,
+            workLocationCode = selectedWorkLocation?.code,
+            workLocationName = selectedWorkLocation?.name,
+            workStartedAt = workStartedAtMillis,
+            workStartedAtText = formatMillisOrNull(workStartedAtMillis),
+            workEndedAt = workEndedAtMillis,
+            workEndedAtText = formatMillisOrNull(workEndedAtMillis),
+            bleSignalLevel = bleSignalLevel.label,
+            bleRssi = bleRssi,
+            weatherAlert = weatherSnapshot.alert,
+            todayMaxTemp = weatherSnapshot.todayMaxTemp,
+            weatherRegion = weatherSnapshot.region,
+            baselinePosture = baselinePosture
         )
-        ui.showFirebaseState("Firebase 상태: currentStatus 요청 완료")
+        ui.showFirebaseState("currentStatus 요청 완료")
     }
 
     private fun uploadRiskLogIfNeeded(sensorData: SensorData, riskLevel: RiskLevel, command: String) {
@@ -246,33 +489,134 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             hum = sensorData.hum.toDouble(),
             lux = sensorData.lux,
             posture = sensorData.posture,
-            message = riskLogPolicy.messageFor(riskLevel)
+            message = riskLogPolicy.messageFor(riskLevel),
+            workLocationCode = selectedWorkLocation?.code,
+            workLocationName = selectedWorkLocation?.name,
+            workStartedAt = workStartedAtMillis,
+            workStartedAtText = formatMillisOrNull(workStartedAtMillis),
+            bleSignalLevel = bleSignalLevel.label,
+            bleRssi = bleRssi,
+            weatherAlert = weatherSnapshot.alert,
+            todayMaxTemp = weatherSnapshot.todayMaxTemp
         )
-        ui.showFirebaseState("Firebase 상태: riskLogs 요청 완료")
+        ui.showFirebaseState("riskLogs 요청 완료")
     }
 
     private fun uploadLastStatus(bleConnected: Boolean, appSessionActive: Boolean) {
-        val sensorData = lastSensorData ?: return
-        FirebaseStatusUploader.uploadCurrentStatus(
-            workerId = sensorData.id,
+        val sensorData = lastSensorData
+        if (sensorData != null) {
+            FirebaseStatusUploader.uploadCurrentStatus(
+                workerId = sensorData.id,
+                deviceName = bleManager.connectedDeviceName,
+                temp = sensorData.temp,
+                hr = sensorData.hr,
+                spo2 = sensorData.spo2,
+                env = sensorData.env,
+                hum = sensorData.hum.toDouble(),
+                lux = sensorData.lux,
+                posture = sensorData.posture,
+                riskLevel = lastRiskLevel.label,
+                riskCommand = lastRiskCommand,
+                bleConnected = bleConnected,
+                appSessionActive = appSessionActive,
+                workLocationCode = selectedWorkLocation?.code,
+                workLocationName = selectedWorkLocation?.name,
+                workStartedAt = workStartedAtMillis,
+                workStartedAtText = formatMillisOrNull(workStartedAtMillis),
+                workEndedAt = workEndedAtMillis,
+                workEndedAtText = formatMillisOrNull(workEndedAtMillis),
+                bleSignalLevel = bleSignalLevel.label,
+                bleRssi = bleRssi,
+                weatherAlert = weatherSnapshot.alert,
+                todayMaxTemp = weatherSnapshot.todayMaxTemp,
+                weatherRegion = weatherSnapshot.region,
+                baselinePosture = baselinePosture
+            )
+            return
+        }
+
+        val workerId = workerIdFromConnectedDeviceName()
+        if (workerId == null) {
+            Log.e(TAG, "sessionStatus upload skipped. workerId cannot be extracted from deviceName=${bleManager.connectedDeviceName}")
+            return
+        }
+
+        FirebaseStatusUploader.uploadSessionStatusOnly(
+            workerId = workerId,
             deviceName = bleManager.connectedDeviceName,
-            temp = sensorData.temp,
-            hr = sensorData.hr,
-            spo2 = sensorData.spo2,
-            env = sensorData.env,
-            hum = sensorData.hum.toDouble(),
-            lux = sensorData.lux,
-            posture = sensorData.posture,
-            riskLevel = lastRiskLevel.label,
-            riskCommand = lastRiskCommand,
+            workLocationCode = selectedWorkLocation?.code,
+            workLocationName = selectedWorkLocation?.name,
+            workStartedAt = workStartedAtMillis,
+            workStartedAtText = formatMillisOrNull(workStartedAtMillis),
+            workEndedAt = workEndedAtMillis,
+            workEndedAtText = formatMillisOrNull(workEndedAtMillis),
             bleConnected = bleConnected,
-            appSessionActive = appSessionActive
+            bleSignalLevel = bleSignalLevel.label,
+            bleRssi = bleRssi,
+            appSessionActive = appSessionActive,
+            weatherAlert = weatherSnapshot.alert,
+            todayMaxTemp = weatherSnapshot.todayMaxTemp,
+            weatherRegion = weatherSnapshot.region,
+            baselinePosture = baselinePosture
         )
+    }
+
+    private fun openWorkerDetail() {
+        val sensorData = lastSensorData
+        val intent = Intent(this, WorkerDetailActivity::class.java).apply {
+            putExtra("workerId", sensorData?.id ?: workerIdFromConnectedDeviceName().orEmpty())
+            putExtra("workLocationCode", selectedWorkLocation?.code ?: "-")
+            putExtra("workLocationName", selectedWorkLocation?.name ?: "미선택")
+            putExtra("workStartedAt", formatMillis(workStartedAtMillis))
+            putExtra("bleState", currentBleState)
+            putExtra("bleSignalLevel", bleSignalLevel.label)
+            putExtra("bleRssi", bleRssi?.toString() ?: "-")
+            putExtra("riskLevel", lastRiskLevel.label)
+            putExtra("temp", sensorData?.temp?.let { "%.1f ℃".format(it) } ?: "-")
+            putExtra("hr", sensorData?.hr?.let { "$it bpm" } ?: "-")
+            putExtra("spo2", sensorData?.spo2?.let { "$it %" } ?: "-")
+            putExtra("env", sensorData?.env?.let { "%.1f ℃".format(it) } ?: "-")
+            putExtra("hum", sensorData?.hum?.let { "$it %" } ?: "-")
+            putExtra("lux", sensorData?.lux?.let { "$it lx" } ?: "-")
+            putExtra("posture", sensorData?.posture ?: "-")
+            putExtra("baselinePosture", baselinePosture ?: "-")
+            putExtra("weatherAlert", weatherSnapshot.alert)
+            putExtra("weatherRegion", weatherSnapshot.region)
+            putExtra("todayMaxTemp", weatherSnapshot.todayMaxTemp?.let { "%.1f ℃".format(it) } ?: "-")
+            putExtra("lastUpdatedAt", lastUpdatedAt)
+        }
+        startActivity(intent)
+    }
+
+    private fun setWorkSessionState(state: WorkSessionState) {
+        workSessionState = state
+        ui.updateWorkSessionState(state)
     }
 
     private fun showParseError(rawData: String) {
         Log.w(TAG, "Sensor parse failed. rawData=$rawData")
         ui.showParseError(rawData)
+    }
+
+    private fun normalizeBleState(message: String): String {
+        return when {
+            message.contains("재연결 실패") -> "재연결 실패"
+            message.contains("재연결") -> "재연결 중"
+            message.contains("시도") -> "연결 시도 중"
+            message.contains("끊김") || message.contains("오프라인") -> "연결 끊김"
+            message.contains("연결됨") || message.contains("수신") -> "연결됨"
+            else -> message
+        }
+    }
+
+    private fun prepareWeatherPlaceholder() {
+        // 기상청 데이터는 지역 단위 참고 정보입니다. TODO: 기상청 API 연동 시 특보와 오늘 최고기온을 갱신합니다.
+        weatherSnapshot = WeatherSnapshot(alert = "연결 전", todayMaxTemp = null, region = "대전")
+        ui.showWeather(weatherSnapshot.alert, weatherSnapshot.todayMaxTemp, weatherSnapshot.region)
+    }
+
+    private fun workerIdFromConnectedDeviceName(): String? {
+        return Regex("^SS_(\\d{4})$").find(bleManager.connectedDeviceName)?.groupValues?.getOrNull(1)
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -292,12 +636,27 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     }
 
     private fun formatNow(): String {
-        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA).format(Date())
+        return koreaDateFormat().format(Date())
+    }
+
+    private fun formatMillis(millis: Long?): String {
+        return formatMillisOrNull(millis) ?: "-"
+    }
+
+    private fun formatMillisOrNull(millis: Long?): String? {
+        return millis?.let { koreaDateFormat().format(Date(it)) }
+    }
+
+    private fun koreaDateFormat(): SimpleDateFormat {
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Seoul")
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         appSessionActive = false
+        if (workEndedAtMillis == null) workEndedAtMillis = System.currentTimeMillis()
         uploadLastStatus(bleConnected = false, appSessionActive = false)
         bleManager.release()
         foregroundServiceController.stop()
@@ -315,7 +674,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
                     grantResults.all { it == PackageManager.PERMISSION_GRANTED }
                 Toast.makeText(
                     this,
-                    if (isGranted) "BLE 권한이 허용되었습니다." else "BLE 권한이 필요합니다.",
+                    if (isGranted) "BLE 권한이 허용되었습니다. 작업 시작을 다시 눌러주세요." else "BLE 권한이 필요합니다.",
                     Toast.LENGTH_SHORT
                 ).show()
             }

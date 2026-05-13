@@ -1,7 +1,6 @@
-// Smart Shield 위험 단계를 enum과 Firebase 표시용 라벨로 관리하는 파일
 package com.example.hnu_ppe_control.data
 
-// label은 Firebase와 UI에서 사용자에게 보여줄 한글 표시값
+// 앱 내부 위험 단계와 작업자 화면 표시 문구를 함께 관리합니다.
 enum class RiskLevel(val label: String) {
     SAFE("정상"),
     CAUTION("주의"),
