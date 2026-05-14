@@ -70,6 +70,7 @@ class BleManager(
     private var lastDataReceivedTime = 0L
     private var isOfflineCheckerRunning = false
     private var isRssiReaderRunning = false
+    private var isConnecting = false
     private var lastConnectedDevice: BluetoothDevice? = null
     private var lastSentRiskCommand: String? = null
     private val notifyBuffer = StringBuilder()
@@ -140,7 +141,6 @@ class BleManager(
     }
 
     fun connect(device: BluetoothDevice) {
-        stopScan()
         if (!BlePermissionHelper.hasConnectPermission(context)) {
             listener.onBleStatusChanged("연결 권한 없음")
             return
@@ -149,7 +149,14 @@ class BleManager(
         val address = readDeviceAddress(device) ?: return
         val name = readDeviceName(device) ?: "Unknown"
 
+        if (isConnecting || isBleConnected) {
+            Log.d(TAG, "Duplicate connect blocked. isConnecting=$isConnecting, isBleConnected=$isBleConnected, address=$address")
+            return
+        }
+
+        stopScan()
         resetConnectionFlags()
+        isConnecting = true
         isManualDisconnect = false
         lastConnectedDevice = device
         connectedDeviceAddress = address
@@ -163,12 +170,14 @@ class BleManager(
             bluetoothGatt = null
             bluetoothGatt = device.connectGatt(context, false, gattCallback)
         } catch (e: SecurityException) {
+            isConnecting = false
             Log.e(TAG, "connectGatt failed by permission", e)
             listener.onBleStatusChanged("연결 권한 오류")
         }
     }
 
     fun disconnectManually() {
+        isConnecting = false
         isManualDisconnect = true
         stopReconnect()
         stopOfflineChecker()
@@ -271,6 +280,15 @@ class BleManager(
             handleServicesDiscovered(gatt, status)
         }
 
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int
+        ) {
+            super.onDescriptorWrite(gatt, descriptor, status)
+            handleDescriptorWrite(descriptor, status)
+        }
+
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
@@ -298,6 +316,7 @@ class BleManager(
     }
 
     private fun handleGattConnected(gatt: BluetoothGatt) {
+        isConnecting = false
         isBleConnected = true
         isServiceDiscovered = false
         isNotifyReady = false
@@ -341,6 +360,7 @@ class BleManager(
 
     private fun handleGattDisconnected(status: Int) {
         Log.w(TAG, "BLE disconnected. status=$status")
+        isConnecting = false
         isBleConnected = false
         isServiceDiscovered = false
         isNotifyReady = false
@@ -407,8 +427,27 @@ class BleManager(
         }
 
         val descriptorWriteStarted = writeNotifyDescriptor(gatt, descriptor)
-        isNotifyReady = notifyEnabled && descriptorWriteStarted
-        if (isNotifyReady) listener.onNotifyReady() else listener.onBleStatusChanged("Notify 설정 실패")
+        isNotifyReady = false
+        if (notifyEnabled && descriptorWriteStarted) {
+            Log.d(TAG, "Notify descriptor write started")
+        } else {
+            Log.e(TAG, "Notify descriptor write start failed. notifyEnabled=$notifyEnabled, descriptorWriteStarted=$descriptorWriteStarted")
+            listener.onBleStatusChanged("Notify 설정 실패")
+        }
+    }
+
+    private fun handleDescriptorWrite(descriptor: BluetoothGattDescriptor, status: Int) {
+        if (descriptor.uuid != BleConstants.CLIENT_CHARACTERISTIC_CONFIG_UUID) return
+
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            isNotifyReady = true
+            Log.d(TAG, "Notify descriptor write success")
+            listener.onNotifyReady()
+        } else {
+            isNotifyReady = false
+            Log.e(TAG, "Notify descriptor write failed. status=$status")
+            listener.onBleStatusChanged("Notify 설정 실패")
+        }
     }
 
     private fun handleNotifyValue(characteristic: BluetoothGattCharacteristic, value: ByteArray?) {
@@ -518,7 +557,15 @@ class BleManager(
                 return
             }
 
-            lastConnectedDevice?.let { connect(it) }
+            if (!isConnecting && !isBleConnected) {
+                lastConnectedDevice?.let {
+                    val address = readDeviceAddress(it) ?: "unknown"
+                    Log.d(TAG, "Reconnect attempt started. address=$address")
+                    connect(it)
+                }
+            } else {
+                Log.d(TAG, "Reconnect skipped. isConnecting=$isConnecting, isBleConnected=$isBleConnected")
+            }
             mainHandler.postDelayed(this, RECONNECT_INTERVAL_MS)
         }
     }
@@ -603,6 +650,7 @@ class BleManager(
     }
 
     private fun resetConnectionFlags() {
+        isConnecting = false
         isBleConnected = false
         isServiceDiscovered = false
         isNotifyReady = false
@@ -612,6 +660,7 @@ class BleManager(
     }
 
     private fun closeGatt() {
+        isConnecting = false
         val gatt = bluetoothGatt ?: return
         try {
             if (BlePermissionHelper.hasConnectPermission(context)) gatt.close()

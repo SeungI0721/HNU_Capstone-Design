@@ -295,7 +295,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         ui.showBleSignal(bleSignalLevel)
         setWorkSessionState(WorkSessionState.WORKING)
 
-        val fakeData = FakeSensorDataProvider.randomPayload()
+        val fakeData = FakeSensorDataProvider.nextPayload()
         Log.d(TAG, "Fake data generated: $fakeData")
         handleReceivedData(fakeData)
     }
