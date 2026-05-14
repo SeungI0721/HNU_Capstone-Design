@@ -66,8 +66,13 @@ const uint8_t BH1750_ADDR_SECONDARY = 0x5C;
 const uint8_t MAX30102_ADDR = 0x57;
 const uint8_t MAX30205_ADDR = 0x48;
 
-const uint32_t MAX30102_MIN_IR = 50000;  // Raise/lower after testing contact quality.
-const uint32_t MAX30102_SAMPLE_INTERVAL_MS = 20;
+const uint32_t MAX30102_SAMPLE_INTERVAL_MS = 10;  // 100Hz 설정에 맞춰 약 10ms마다 샘플링합니다.
+const byte MAX30102_RED_LED_AMPLITUDE = 0x24;
+const byte MAX30102_IR_LED_AMPLITUDE = 0x24;
+const byte SPO2_BUFFER_SIZE = 100;
+const uint32_t FINGER_STABLE_MS = 2000;
+const uint32_t MAX30102_DEBUG_INTERVAL_MS = 1000;
+const float BPM_JUMP_LIMIT = 35.0f;
 
 // =========================
 // Devices and state
@@ -109,9 +114,20 @@ struct PulseState {
   int latestHr = 0;
   int latestSpo2 = 0;
   bool fingerDetected = false;
+  bool hrMeasured = false;
+  bool spo2Measured = false;
+  bool hasMeasuredValue = false;
+  uint32_t latestIr = 0;
+  uint32_t latestRed = 0;
+  uint32_t irBuffer[SPO2_BUFFER_SIZE] = {0};
+  uint32_t redBuffer[SPO2_BUFFER_SIZE] = {0};
+  byte bufferSpot = 0;
+  byte bufferCount = 0;
   byte rates[8] = {0};
   byte rateSpot = 0;
   unsigned long lastSampleMs = 0;
+  unsigned long fingerStableStartMs = 0;
+  unsigned long lastDebugMs = 0;
 } pulse;
 
 struct MotionSample {
@@ -165,6 +181,8 @@ String valueOrFallback(const String& value, const char* fallbackValue) {
 }
 
 bool i2cDevicePresent(uint8_t address);
+String readHeartRateForApp();
+String readSpo2ForApp();
 
 void setLedRaw(bool redOn, bool greenOn, bool blueOn) {
   digitalWrite(LED_R_PIN, COMMON_ANODE_LED ? !redOn : redOn);
@@ -386,23 +404,128 @@ String readHumidity() {
   return formatIntOrEmpty(humidity, 0, 100);
 }
 
+void resetPulseState() {
+  pulse.lastBeatMs = 0;
+  pulse.bpm = 0;
+  pulse.avgBpm = 0;
+  pulse.latestHr = 0;
+  pulse.latestSpo2 = 0;
+  pulse.hrMeasured = false;
+  pulse.spo2Measured = false;
+  pulse.hasMeasuredValue = false;
+  pulse.bufferSpot = 0;
+  pulse.bufferCount = 0;
+  pulse.rateSpot = 0;
+  memset(pulse.rates, 0, sizeof(pulse.rates));
+  memset(pulse.irBuffer, 0, sizeof(pulse.irBuffer));
+  memset(pulse.redBuffer, 0, sizeof(pulse.redBuffer));
+}
+
+bool calculateSpo2FromBuffer() {
+  if (pulse.bufferCount < SPO2_BUFFER_SIZE) {
+    return false;
+  }
+
+  uint32_t redMin = 0xFFFFFFFFUL;
+  uint32_t redMax = 0;
+  uint32_t irMin = 0xFFFFFFFFUL;
+  uint32_t irMax = 0;
+  double redSum = 0;
+  double irSum = 0;
+
+  for (byte i = 0; i < SPO2_BUFFER_SIZE; i++) {
+    uint32_t red = pulse.redBuffer[i];
+    uint32_t ir = pulse.irBuffer[i];
+    redMin = min(redMin, red);
+    redMax = max(redMax, red);
+    irMin = min(irMin, ir);
+    irMax = max(irMax, ir);
+    redSum += red;
+    irSum += ir;
+  }
+
+  float redDc = redSum / SPO2_BUFFER_SIZE;
+  float irDc = irSum / SPO2_BUFFER_SIZE;
+  float redAc = redMax - redMin;
+  float irAc = irMax - irMin;
+
+  if (redDc <= 0 || irDc <= 0 || redAc <= 0 || irAc <= 0) {
+    return false;
+  }
+
+  float ratio = (redAc / redDc) / (irAc / irDc);
+  if (isnan(ratio) || ratio < 0.4f || ratio > 3.0f) {
+    return false;
+  }
+
+  // 의료용 계산이 아니라 앱 시연용 간이 SpO2 추정값입니다.
+  int estimatedSpo2 = (int)round(110.0f - 25.0f * ratio);
+  pulse.latestSpo2 = constrain(estimatedSpo2, 70, 100);
+  pulse.spo2Measured = true;
+  pulse.hasMeasuredValue = pulse.hrMeasured && pulse.spo2Measured;
+  return true;
+}
+
+void printMax30102Debug() {
+  unsigned long now = millis();
+  if (now - pulse.lastDebugMs < MAX30102_DEBUG_INTERVAL_MS) {
+    return;
+  }
+  pulse.lastDebugMs = now;
+
+  if (!max30102Ready) {
+    Serial.println("[MAX30102] not available, source=FALLBACK");
+    return;
+  }
+
+  Serial.print("[MAX30102] IR=");
+  Serial.print(pulse.latestIr);
+  Serial.print(", RED=");
+  Serial.print(pulse.latestRed);
+  Serial.print(", finger=");
+  Serial.print(pulse.fingerDetected ? "YES" : "NO");
+  Serial.print(", HR=");
+  Serial.print(readHeartRateForApp());
+  Serial.print(", SPO2=");
+  Serial.print(readSpo2ForApp());
+  Serial.print(", source=");
+  Serial.println(pulse.hasMeasuredValue ? "MEASURED" : "FALLBACK");
+}
+
 void updateHeartSensor() {
   if (!max30102Ready) {
     pulse.fingerDetected = false;
+    printMax30102Debug();
     return;
   }
 
   unsigned long now = millis();
   if (now - pulse.lastSampleMs < MAX30102_SAMPLE_INTERVAL_MS) {
+    printMax30102Debug();
     return;
   }
   pulse.lastSampleMs = now;
 
-  long irValue = particleSensor.getIR();
-  long redValue = particleSensor.getRed();
-  pulse.fingerDetected = irValue >= MAX30102_MIN_IR && redValue > 0;
+  uint32_t irValue = particleSensor.getIR();
+  uint32_t redValue = particleSensor.getRed();
+  pulse.latestIr = irValue;
+  pulse.latestRed = redValue;
 
   if (!pulse.fingerDetected) {
+    resetPulseState();
+    pulse.fingerDetected = true;
+    pulse.fingerStableStartMs = now;
+  }
+
+  pulse.redBuffer[pulse.bufferSpot] = redValue;
+  pulse.irBuffer[pulse.bufferSpot] = irValue;
+  pulse.bufferSpot = (pulse.bufferSpot + 1) % SPO2_BUFFER_SIZE;
+  if (pulse.bufferCount < SPO2_BUFFER_SIZE) {
+    pulse.bufferCount++;
+  }
+
+  if (now - pulse.fingerStableStartMs < FINGER_STABLE_MS) {
+    printMax30102Debug();
     return;
   }
 
@@ -410,48 +533,57 @@ void updateHeartSensor() {
     long delta = now - pulse.lastBeatMs;
     pulse.lastBeatMs = now;
 
-    if (delta > 0) {
-      pulse.bpm = 60.0 / (delta / 1000.0);
-      if (pulse.bpm >= 40 && pulse.bpm <= 220) {
-        pulse.rates[pulse.rateSpot++] = (byte)pulse.bpm;
-        pulse.rateSpot %= 8;
+    if (delta >= 273 && delta <= 1500) {
+      float newBpm = 60.0f / (delta / 1000.0f);
+      if (newBpm >= 40.0f && newBpm <= 220.0f) {
+        if (pulse.avgBpm <= 0 || fabs(newBpm - pulse.avgBpm) <= BPM_JUMP_LIMIT) {
+          pulse.rates[pulse.rateSpot++] = (byte)round(newBpm);
+          pulse.rateSpot %= 8;
 
-        int total = 0;
-        int count = 0;
-        for (byte i = 0; i < 8; i++) {
-          if (pulse.rates[i] > 0) {
-            total += pulse.rates[i];
-            count++;
+          int total = 0;
+          int count = 0;
+          for (byte i = 0; i < 8; i++) {
+            if (pulse.rates[i] > 0) {
+              total += pulse.rates[i];
+              count++;
+            }
           }
-        }
-        if (count > 0) {
-          pulse.avgBpm = (float)total / count;
-          pulse.latestHr = (int)round(pulse.avgBpm);
+          if (count > 0) {
+            pulse.bpm = newBpm;
+            pulse.avgBpm = (float)total / count;
+            pulse.latestHr = (int)round(pulse.avgBpm);
+            pulse.hrMeasured = true;
+            pulse.hasMeasuredValue = pulse.hrMeasured && pulse.spo2Measured;
+          }
         }
       }
     }
   }
 
-  // 앱 연동용 참고값입니다. 의료용 SpO2가 아니라 red/IR 비율 기반의 간이 추정값입니다.
-  float ratio = (float)redValue / (float)irValue;
-  int estimatedSpo2 = (int)round(110.0f - 25.0f * ratio);
-  if (estimatedSpo2 >= 70 && estimatedSpo2 <= 100) {
-    pulse.latestSpo2 = estimatedSpo2;
-  }
+  calculateSpo2FromBuffer();
+  printMax30102Debug();
 }
 
 String readHeartRate() {
-  if (!max30102Ready || !pulse.fingerDetected || pulse.latestHr <= 0) {
+  if (!max30102Ready || !pulse.hrMeasured || pulse.latestHr <= 0) {
     return "";
   }
   return String(pulse.latestHr);
 }
 
 String readSpo2() {
-  if (!max30102Ready || !pulse.fingerDetected || pulse.latestSpo2 <= 0) {
+  if (!max30102Ready || !pulse.spo2Measured || pulse.latestSpo2 <= 0) {
     return "";
   }
   return String(pulse.latestSpo2);
+}
+
+String readSpo2ForApp() {
+  String spo2 = readSpo2();
+  if (spo2.length() > 0) {
+    return spo2;
+  }
+  return valueOrFallback("", FALLBACK_SPO2);
 }
 
 String readHeartRateForApp() {
@@ -460,7 +592,7 @@ String readHeartRateForApp() {
     return hr;
   }
 
-  if (max30102Ready && pulse.fingerDetected) {
+  if (max30102Ready) {
     return String(FALLBACK_HR);
   }
 
@@ -612,7 +744,7 @@ String buildPayload() {
   // MAX30205가 정상 연결되면 실제 측정값이 우선 사용되고, 실패할 때만 fallback이 들어간다.
   String temp = valueOrFallback(readSkinTemp(), FALLBACK_TEMP);
   String hr = valueOrFallback(readHeartRateForApp(), FALLBACK_HR);
-  String spo2 = valueOrFallback(readSpo2(), FALLBACK_SPO2);
+  String spo2 = readSpo2ForApp();
   String env = valueOrFallback(readEnvTemp(), FALLBACK_ENV);
   String hum = valueOrFallback(readHumidity(), FALLBACK_HUM);
   String lux = valueOrFallback(readLux(), FALLBACK_LUX);
@@ -782,7 +914,7 @@ void scanI2C() {
 
 void initSensors() {
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-  Wire.setClock(400000);
+  Wire.setClock(100000);
   scanI2C();
 
   bmeReady = bme.begin(BME280_ADDR_PRIMARY, &Wire);
@@ -829,18 +961,17 @@ void initSensors() {
   }
   Serial.println(bh1750Ready ? "[SENSOR] BH1750 OK" : "[SENSOR] BH1750 NOT FOUND");
 
-  max30102Ready = particleSensor.begin(Wire, I2C_SPEED_FAST);
+  max30102Ready = particleSensor.begin(Wire, I2C_SPEED_STANDARD);
   if (max30102Ready) {
-    byte ledBrightness = 0x1F;
-    byte sampleAverage = 4;
-    byte ledMode = 2;
-    int sampleRate = 100;
-    int pulseWidth = 411;
-    int adcRange = 4096;
-    particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange);
-    particleSensor.setPulseAmplitudeRed(0x1F);
-    particleSensor.setPulseAmplitudeIR(0x1F);
+    particleSensor.setup();
+    particleSensor.setPulseAmplitudeRed(MAX30102_RED_LED_AMPLITUDE);
+    particleSensor.setPulseAmplitudeIR(MAX30102_IR_LED_AMPLITUDE);
     particleSensor.setPulseAmplitudeGreen(0);
+    resetPulseState();
+    Serial.print("[MAX30102] I2C=STANDARD, setup=DEFAULT, redAmp=0x");
+    Serial.print(MAX30102_RED_LED_AMPLITUDE, HEX);
+    Serial.print(", irAmp=0x");
+    Serial.println(MAX30102_IR_LED_AMPLITUDE, HEX);
   }
   Serial.println(max30102Ready ? "[SENSOR] MAX30102 OK" : "[SENSOR] MAX30102 NOT FOUND");
 
