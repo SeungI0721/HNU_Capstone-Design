@@ -1,5 +1,5 @@
-D:\HNU\build\sketch\Integration_Test_Code.ino.cpp.o: \
- D:\HNU\build\sketch\Integration_Test_Code.ino.cpp \
+D:\HNU\build\libraries\Adafruit_MPU6050\Adafruit_MPU6050.cpp.o: \
+ C:\Users\User\Documents\Arduino\libraries\Adafruit_MPU6050\Adafruit_MPU6050.cpp \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/Arduino.h \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\tools\esp32-libs\3.3.8/include/newlib/platform_include/stdio.h \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/esp_arduino_version.h \
@@ -172,12 +172,12 @@ D:\HNU\build\sketch\Integration_Test_Code.ino.cpp.o: \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/esp32-hal.h \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/esp32-hal-log.h \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/HardwareI2C.h \
- C:\Users\User\Documents\Arduino\libraries\Adafruit_Unified_Sensor/Adafruit_Sensor.h \
- C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/Print.h \
- C:\Users\User\Documents\Arduino\libraries\Adafruit_BME280_Library/Adafruit_BME280.h \
+ C:\Users\User\Documents\Arduino\libraries\Adafruit_MPU6050/Adafruit_MPU6050.h \
+ C:\Users\User\Documents\Arduino\libraries\Adafruit_BusIO/Adafruit_BusIO_Register.h \
+ C:\Users\User\Documents\Arduino\libraries\Adafruit_BusIO/Adafruit_GenericDevice.h \
  C:\Users\User\Documents\Arduino\libraries\Adafruit_BusIO/Adafruit_I2CDevice.h \
  C:\Users\User\Documents\Arduino\libraries\Adafruit_BusIO/Adafruit_SPIDevice.h \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\libraries\SPI\src/SPI.h \
  C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/esp32-hal-spi.h \
- C:\Users\User\Documents\Arduino\libraries\BH1750\src/BH1750.h \
- C:\Users\User\Documents\Arduino\libraries\SparkFun_MAX3010x_Pulse_and_Proximity_Sensor_Library\src/MAX30105.h
+ C:\Users\User\Documents\Arduino\libraries\Adafruit_Unified_Sensor/Adafruit_Sensor.h \
+ C:\Users\User\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\cores\esp32/Print.h

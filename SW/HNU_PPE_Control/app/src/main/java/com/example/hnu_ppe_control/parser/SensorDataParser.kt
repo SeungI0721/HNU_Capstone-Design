@@ -39,10 +39,14 @@ object SensorDataParser {
         val env = dataMap["ENV"]?.toDoubleOrNull() ?: return null
         val hum = dataMap["HUM"]?.toIntOrNull() ?: return null
         val lux = dataMap["LUX"]?.toIntOrNull() ?: return null
+        val ax = dataMap["AX"]?.toDoubleOrNull()
+        val ay = dataMap["AY"]?.toDoubleOrNull()
+        val az = dataMap["AZ"]?.toDoubleOrNull()
         val posture = dataMap["POSTURE"]?.uppercase() ?: return null
 
         if (!isValidWorkerId(id)) return null
         if (!isValidSensorRange(temp, hr, spo2, env, hum, lux)) return null
+        if (!isValidAxisRange(ax, ay, az)) return null
         if (!allowedPostures.contains(posture)) return null
 
         return SensorData(
@@ -53,6 +57,9 @@ object SensorDataParser {
             env = env,
             hum = hum,
             lux = lux,
+            ax = ax,
+            ay = ay,
+            az = az,
             posture = posture
         )
     }
@@ -91,5 +98,11 @@ object SensorDataParser {
         if (lux < 0 || lux > 200000) return false
 
         return true
+    }
+
+    private fun isValidAxisRange(ax: Double?, ay: Double?, az: Double?): Boolean {
+        return listOf(ax, ay, az).all { value ->
+            value == null || (!value.isNaN() && value >= -80.0 && value <= 80.0)
+        }
     }
 }

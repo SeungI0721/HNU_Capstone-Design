@@ -26,6 +26,8 @@ import com.example.hnu_ppe_control.data.BleSignalLevel
 import com.example.hnu_ppe_control.data.RiskLevel
 import com.example.hnu_ppe_control.data.SensorData
 import com.example.hnu_ppe_control.data.WeatherSnapshot
+import com.example.hnu_ppe_control.data.WorkerDetailSnapshot
+import com.example.hnu_ppe_control.data.WorkerStatusStore
 import com.example.hnu_ppe_control.data.WorkLocation
 import com.example.hnu_ppe_control.data.WorkSessionState
 import com.example.hnu_ppe_control.firebase.FirebaseStatusUploader
@@ -85,6 +87,9 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         initUi()
         requestNotificationPermissionIfNeeded()
         prepareWeatherPlaceholder()
+        FirebaseStatusUploader.startRealtimeConnection { success, message ->
+            showFirebaseUploadResult(success, message)
+        }
     }
 
     private fun initManagers() {
@@ -354,6 +359,8 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         ui.showConnectedDevice(deviceName, address)
         ui.showWorkStartedAt(formatMillis(workStartedAtMillis))
         setWorkSessionState(WorkSessionState.WORKING)
+        updateWorkerDetailSnapshot()
+        uploadLastStatus(bleConnected = true, appSessionActive = true)
     }
 
     override fun onDisconnected(manual: Boolean) {
@@ -371,6 +378,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         } else {
             setWorkSessionState(WorkSessionState.RECONNECTING)
         }
+        updateWorkerDetailSnapshot()
     }
 
     override fun onReconnectFailed() {
@@ -406,6 +414,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         bleRssi = rssi
         bleSignalLevel = BleSignalLevel.fromRssi(rssi)
         ui.showBleSignal(bleSignalLevel)
+        updateWorkerDetailSnapshot()
     }
 
     private fun handleReceivedData(rawData: String) {
@@ -437,6 +446,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         ui.showSensorData(sensorData, riskLevel, lastUpdatedAt)
         ui.showRisk(riskLevel)
         ui.showRiskCommand(command)
+        updateWorkerDetailSnapshot()
 
         bleManager.writeRiskCommand(command)
         uploadCurrentStatus(sensorData, riskLevel, command)
@@ -455,6 +465,9 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             env = sensorData.env,
             hum = sensorData.hum.toDouble(),
             lux = sensorData.lux,
+            ax = sensorData.ax,
+            ay = sensorData.ay,
+            az = sensorData.az,
             posture = sensorData.posture,
             riskLevel = riskLevel.label,
             riskCommand = command,
@@ -471,9 +484,9 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             weatherAlert = weatherSnapshot.alert,
             todayMaxTemp = weatherSnapshot.todayMaxTemp,
             weatherRegion = weatherSnapshot.region,
-            baselinePosture = baselinePosture
+            baselinePosture = baselinePosture,
+            callback = { success, message -> showFirebaseUploadResult(success, message) }
         )
-        ui.showFirebaseState("currentStatus 요청 완료")
     }
 
     private fun uploadRiskLogIfNeeded(sensorData: SensorData, riskLevel: RiskLevel, command: String) {
@@ -488,6 +501,9 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             env = sensorData.env,
             hum = sensorData.hum.toDouble(),
             lux = sensorData.lux,
+            ax = sensorData.ax,
+            ay = sensorData.ay,
+            az = sensorData.az,
             posture = sensorData.posture,
             message = riskLogPolicy.messageFor(riskLevel),
             workLocationCode = selectedWorkLocation?.code,
@@ -497,9 +513,9 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             bleSignalLevel = bleSignalLevel.label,
             bleRssi = bleRssi,
             weatherAlert = weatherSnapshot.alert,
-            todayMaxTemp = weatherSnapshot.todayMaxTemp
+            todayMaxTemp = weatherSnapshot.todayMaxTemp,
+            callback = { success, message -> showFirebaseUploadResult(success, message) }
         )
-        ui.showFirebaseState("riskLogs 요청 완료")
     }
 
     private fun uploadLastStatus(bleConnected: Boolean, appSessionActive: Boolean) {
@@ -514,6 +530,9 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
                 env = sensorData.env,
                 hum = sensorData.hum.toDouble(),
                 lux = sensorData.lux,
+                ax = sensorData.ax,
+                ay = sensorData.ay,
+                az = sensorData.az,
                 posture = sensorData.posture,
                 riskLevel = lastRiskLevel.label,
                 riskCommand = lastRiskCommand,
@@ -530,7 +549,8 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
                 weatherAlert = weatherSnapshot.alert,
                 todayMaxTemp = weatherSnapshot.todayMaxTemp,
                 weatherRegion = weatherSnapshot.region,
-                baselinePosture = baselinePosture
+                baselinePosture = baselinePosture,
+                callback = { success, message -> showFirebaseUploadResult(success, message) }
             )
             return
         }
@@ -557,11 +577,22 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             weatherAlert = weatherSnapshot.alert,
             todayMaxTemp = weatherSnapshot.todayMaxTemp,
             weatherRegion = weatherSnapshot.region,
-            baselinePosture = baselinePosture
+            baselinePosture = baselinePosture,
+            callback = { success, message -> showFirebaseUploadResult(success, message) }
         )
     }
 
+    private fun showFirebaseUploadResult(success: Boolean, message: String) {
+        runOnUiThread {
+            ui.showFirebaseState(message)
+            if (!success) Log.e(TAG, message)
+        }
+    }
+
     private fun openWorkerDetail() {
+        updateWorkerDetailSnapshot()
+        startActivity(Intent(this, WorkerDetailActivity::class.java))
+        /*
         val sensorData = lastSensorData
         val intent = Intent(this, WorkerDetailActivity::class.java).apply {
             putExtra("workerId", sensorData?.id ?: workerIdFromConnectedDeviceName().orEmpty())
@@ -586,6 +617,45 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             putExtra("lastUpdatedAt", lastUpdatedAt)
         }
         startActivity(intent)
+        */
+    }
+
+    private fun updateWorkerDetailSnapshot() {
+        WorkerStatusStore.update(buildWorkerDetailSnapshot(), applicationContext)
+    }
+
+    private fun buildWorkerDetailSnapshot(): WorkerDetailSnapshot {
+        val sensorData = lastSensorData
+        return WorkerDetailSnapshot(
+            workerId = sensorData?.id ?: workerIdFromConnectedDeviceName() ?: "-",
+            workLocationCode = selectedWorkLocation?.code ?: "-",
+            workLocationName = selectedWorkLocation?.name ?: "-",
+            workStartedAt = formatMillis(workStartedAtMillis),
+            bleState = currentBleState,
+            bleSignalLevel = bleSignalLevel.label,
+            bleRssi = bleRssi?.toString() ?: "-",
+            riskLevel = lastRiskLevel.label,
+            temp = sensorData?.temp?.let { "%.1f ℃".format(it) } ?: "-",
+            hr = sensorData?.hr?.let { "$it bpm" } ?: "-",
+            spo2 = sensorData?.spo2?.let { "$it %" } ?: "-",
+            env = sensorData?.env?.let { "%.1f ℃".format(it) } ?: "-",
+            hum = sensorData?.hum?.let { "$it %" } ?: "-",
+            lux = sensorData?.lux?.let { "$it lx" } ?: "-",
+            axis = sensorData?.let { formatAxis(it) } ?: "-",
+            posture = sensorData?.posture ?: "-",
+            baselinePosture = baselinePosture ?: "-",
+            weatherAlert = weatherSnapshot.alert,
+            weatherRegion = weatherSnapshot.region,
+            todayMaxTemp = weatherSnapshot.todayMaxTemp?.let { "%.1f ℃".format(it) } ?: "-",
+            lastUpdatedAt = lastUpdatedAt
+        )
+    }
+
+    private fun formatAxis(sensorData: SensorData): String {
+        val ax = sensorData.ax?.let { "%.2f".format(it) } ?: "-"
+        val ay = sensorData.ay?.let { "%.2f".format(it) } ?: "-"
+        val az = sensorData.az?.let { "%.2f".format(it) } ?: "-"
+        return "X:$ax, Y:$ay, Z:$az"
     }
 
     private fun setWorkSessionState(state: WorkSessionState) {

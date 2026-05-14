@@ -12,6 +12,9 @@ data class SensorData(
     val hum: Int,
     // BH1750 기반 조도값입니다. 직사광선/고조도 위험 판단과 앱 화면 확인에 사용합니다.
     val lux: Int,
+    val ax: Double?,
+    val ay: Double?,
+    val az: Double?,
     val posture: String
 ) {
     // BH1750 LUX 값을 기반으로 앱에서 직사광선 가능성을 추정합니다.

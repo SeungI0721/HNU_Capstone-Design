@@ -4,10 +4,31 @@ import android.util.Log
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 
+private typealias UploadCallback = (success: Boolean, message: String) -> Unit
+private data class PendingCurrentStatusUpload(
+    val workerId: String,
+    val data: Map<String, Any>,
+    val callback: UploadCallback?
+)
+
 object FirebaseStatusUploader {
 
     private const val TAG = "SmartShieldFirebase"
-    private val database = FirebaseDatabase.getInstance()
+    private const val DATABASE_URL = "https://hnu-ppe-default-rtdb.asia-southeast1.firebasedatabase.app"
+    private val database = FirebaseDatabase.getInstance(DATABASE_URL)
+    private var currentStatusUploadInFlight = false
+    private var pendingCurrentStatusUpload: PendingCurrentStatusUpload? = null
+
+    fun startRealtimeConnection(callback: UploadCallback? = null) {
+        database.goOnline()
+        database.getReference(".info/connected").get()
+            .addOnSuccessListener { snapshot ->
+                callback?.invoke(true, "Firebase 연결 준비: ${snapshot.value}")
+            }
+            .addOnFailureListener { error ->
+                callback?.invoke(false, "Firebase 연결 확인 실패: ${error.message}")
+            }
+    }
 
     fun uploadCurrentStatus(
         workerId: String,
@@ -18,6 +39,9 @@ object FirebaseStatusUploader {
         env: Double,
         hum: Double,
         lux: Int,
+        ax: Double?,
+        ay: Double?,
+        az: Double?,
         posture: String,
         riskLevel: String,
         riskCommand: String,
@@ -34,10 +58,12 @@ object FirebaseStatusUploader {
         weatherAlert: String?,
         todayMaxTemp: Double?,
         weatherRegion: String?,
-        baselinePosture: String?
+        baselinePosture: String?,
+        callback: UploadCallback? = null
     ) {
         if (workerId.isBlank()) {
             Log.e(TAG, "currentStatus upload FAILED. workerId is blank")
+            callback?.invoke(false, "currentStatus 실패: workerId 없음")
             return
         }
 
@@ -70,8 +96,11 @@ object FirebaseStatusUploader {
         data["riskLevel"] = riskLevel
         data["riskCommand"] = riskCommand
         spo2?.let { data["spo2"] = it }
+        ax?.let { data["ax"] = it }
+        ay?.let { data["ay"] = it }
+        az?.let { data["az"] = it }
 
-        uploadCurrentStatusMap(workerId, data)
+        uploadCurrentStatusMap(workerId, data, callback)
     }
 
     fun uploadSessionStatusOnly(
@@ -90,10 +119,12 @@ object FirebaseStatusUploader {
         weatherAlert: String?,
         todayMaxTemp: Double?,
         weatherRegion: String?,
-        baselinePosture: String?
+        baselinePosture: String?,
+        callback: UploadCallback? = null
     ) {
         if (workerId.isBlank()) {
             Log.e(TAG, "sessionStatus upload FAILED. workerId is blank")
+            callback?.invoke(false, "sessionStatus 실패: workerId 없음")
             return
         }
 
@@ -116,7 +147,7 @@ object FirebaseStatusUploader {
             baselinePosture = baselinePosture
         )
 
-        uploadCurrentStatusMap(workerId, data)
+        uploadCurrentStatusMap(workerId, data, callback)
     }
 
     fun uploadRiskLog(
@@ -129,6 +160,9 @@ object FirebaseStatusUploader {
         env: Double,
         hum: Double,
         lux: Int,
+        ax: Double?,
+        ay: Double?,
+        az: Double?,
         posture: String,
         message: String,
         workLocationCode: String?,
@@ -138,14 +172,16 @@ object FirebaseStatusUploader {
         bleSignalLevel: String?,
         bleRssi: Int?,
         weatherAlert: String?,
-        todayMaxTemp: Double?
+        todayMaxTemp: Double?,
+        callback: UploadCallback? = null
     ) {
         if (workerId.isBlank()) {
             Log.e(TAG, "riskLog upload FAILED. workerId is blank")
+            callback?.invoke(false, "riskLogs 실패: workerId 없음")
             return
         }
 
-        FirebaseDatabase.getInstance().goOnline()
+        database.goOnline()
 
         val ref = database.getReference("workers")
             .child(workerId)
@@ -168,6 +204,9 @@ object FirebaseStatusUploader {
         )
 
         spo2?.let { data["spo2"] = it }
+        ax?.let { data["ax"] = it }
+        ay?.let { data["ay"] = it }
+        az?.let { data["az"] = it }
         putIfNotBlank(data, "workLocationCode", workLocationCode)
         putIfNotBlank(data, "workLocationName", workLocationName)
         workStartedAt?.let { data["workStartedAt"] = it }
@@ -180,8 +219,14 @@ object FirebaseStatusUploader {
         Log.d(TAG, "riskLog upload START path=workers/$workerId/riskLogs data=$data")
 
         ref.setValue(data) { error: DatabaseError?, _ ->
-            if (error == null) Log.d(TAG, "riskLog upload SUCCESS")
-            else Log.e(TAG, "riskLog upload FAILED. code=${error.code}, message=${error.message}, details=${error.details}")
+            if (error == null) {
+                Log.d(TAG, "riskLog upload SUCCESS")
+                callback?.invoke(true, "riskLogs 업로드 성공")
+            } else {
+                val message = "riskLogs 실패: ${error.message}"
+                Log.e(TAG, "riskLog upload FAILED. code=${error.code}, message=${error.message}, details=${error.details}")
+                callback?.invoke(false, message)
+            }
         }
     }
 
@@ -226,8 +271,21 @@ object FirebaseStatusUploader {
         return data
     }
 
-    private fun uploadCurrentStatusMap(workerId: String, data: Map<String, Any>) {
-        FirebaseDatabase.getInstance().goOnline()
+    private fun uploadCurrentStatusMap(
+        workerId: String,
+        data: Map<String, Any>,
+        callback: UploadCallback? = null
+    ) {
+        database.goOnline()
+
+        synchronized(this) {
+            if (currentStatusUploadInFlight) {
+                pendingCurrentStatusUpload = PendingCurrentStatusUpload(workerId, data, callback)
+                Log.d(TAG, "currentStatus upload COALESCED path=workers/$workerId/currentStatus data=$data")
+                return
+            }
+            currentStatusUploadInFlight = true
+        }
 
         val ref = database.getReference("workers")
             .child(workerId)
@@ -236,8 +294,27 @@ object FirebaseStatusUploader {
         Log.d(TAG, "currentStatus upload START path=workers/$workerId/currentStatus data=$data")
 
         ref.updateChildren(data) { error: DatabaseError?, _ ->
-            if (error == null) Log.d(TAG, "currentStatus upload SUCCESS")
-            else Log.e(TAG, "currentStatus upload FAILED. code=${error.code}, message=${error.message}, details=${error.details}")
+            if (error == null) {
+                Log.d(TAG, "currentStatus upload SUCCESS")
+                callback?.invoke(true, "currentStatus 업로드 성공")
+            } else {
+                val message = "currentStatus 실패: ${error.message}"
+                Log.e(TAG, "currentStatus upload FAILED. code=${error.code}, message=${error.message}, details=${error.details}")
+                callback?.invoke(false, message)
+            }
+            uploadPendingCurrentStatusIfNeeded()
+        }
+    }
+
+    private fun uploadPendingCurrentStatusIfNeeded() {
+        val pending = synchronized(this) {
+            currentStatusUploadInFlight = false
+            val next = pendingCurrentStatusUpload
+            pendingCurrentStatusUpload = null
+            next
+        }
+        if (pending != null) {
+            uploadCurrentStatusMap(pending.workerId, pending.data, pending.callback)
         }
     }
 

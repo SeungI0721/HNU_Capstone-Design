@@ -51,7 +51,7 @@ class MainUiController(
     }
 
     fun showDefault(bleAvailable: Boolean) {
-        txtBleState.text = if (bleAvailable) "연결 전" else "사용 불가"
+        txtBleState.text = if (bleAvailable) "연결 대기" else "사용 불가"
         txtBleSignalLevel.text = BleSignalLevel.NOT_CONNECTED.label
         txtWorkLocation.text = "미선택"
         txtWorkStartedAt.text = "-"
@@ -59,7 +59,7 @@ class MainUiController(
         txtHrCard.text = "- bpm"
         txtSpo2Card.text = "- %"
         txtEnvCard.text = "- ℃ / - %"
-        txtWeatherAlert.text = "연결 전"
+        txtWeatherAlert.text = "연동 대기"
         txtTodayMaxTemp.text = "-"
         txtWeatherRegion.text = "미설정"
         txtReconnectState.text = "대기"
@@ -129,6 +129,9 @@ class MainUiController(
     }
 
     fun showSensorData(sensorData: SensorData, riskLevel: RiskLevel, formattedTime: String) {
+        val axisText = "X:${sensorData.ax?.let { "%.2f".format(it) } ?: "-"} " +
+            "Y:${sensorData.ay?.let { "%.2f".format(it) } ?: "-"} " +
+            "Z:${sensorData.az?.let { "%.2f".format(it) } ?: "-"}"
         val detailText = """
             workerId: ${sensorData.id}
             TEMP 피부온도: ${sensorData.temp}
@@ -137,6 +140,7 @@ class MainUiController(
             ENV 주변 온도: ${sensorData.env}
             HUM 습도: ${sensorData.hum}
             LUX 조도: ${sensorData.lux}
+            MPU X/Y/Z: $axisText
             POSTURE 자세: ${sensorData.posture}
             위험 단계: ${riskLevel.label}
         """.trimIndent()
@@ -191,7 +195,7 @@ class MainUiController(
             RiskLevel.SAFE -> "현재 작업 상태가 안정적입니다."
             RiskLevel.CAUTION -> "수분 섭취와 휴식을 권장합니다."
             RiskLevel.DANGER -> "위험 상태가 감지되었습니다. 즉시 휴식하세요."
-            RiskLevel.EMERGENCY -> "응급 상태가 감지되었습니다. 즉시 도움을 요청하세요."
+            RiskLevel.EMERGENCY -> "응급 상태가 감지되었습니다. 즉시 구조를 요청하세요."
             RiskLevel.ERROR -> "센서 데이터 확인이 필요합니다."
         }
     }

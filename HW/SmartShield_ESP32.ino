@@ -54,16 +54,20 @@ const char* FALLBACK_SPO2 = "98";
 const char* FALLBACK_ENV = "28.5";
 const char* FALLBACK_HUM = "55";
 const char* FALLBACK_LUX = "8000";
+const char* FALLBACK_POSTURE = "NORMAL";
+const char* FALLBACK_AXIS = "0.00";
 
 const uint8_t BME280_ADDR_PRIMARY = 0x76;
 const uint8_t BME280_ADDR_SECONDARY = 0x77;
-const uint8_t MPU6050_ADDR = 0x68;
+const uint8_t MPU6050_ADDR_PRIMARY = 0x68;
+const uint8_t MPU6050_ADDR_SECONDARY = 0x69;
 const uint8_t BH1750_ADDR_PRIMARY = 0x23;
 const uint8_t BH1750_ADDR_SECONDARY = 0x5C;
 const uint8_t MAX30102_ADDR = 0x57;
 const uint8_t MAX30205_ADDR = 0x48;
 
 const uint32_t MAX30102_MIN_IR = 50000;  // Raise/lower after testing contact quality.
+const uint32_t MAX30102_SAMPLE_INTERVAL_MS = 20;
 
 // =========================
 // Devices and state
@@ -80,6 +84,7 @@ bool restartAdvertising = false;
 
 bool bmeReady = false;
 bool mpuReady = false;
+bool mpuRawReady = false;
 bool bh1750Ready = false;
 bool max30102Ready = false;
 bool max30205Ready = false;
@@ -101,9 +106,20 @@ struct PulseState {
   long lastBeatMs = 0;
   float bpm = 0;
   float avgBpm = 0;
+  int latestHr = 0;
+  int latestSpo2 = 0;
+  bool fingerDetected = false;
   byte rates[8] = {0};
   byte rateSpot = 0;
+  unsigned long lastSampleMs = 0;
 } pulse;
+
+struct MotionSample {
+  String ax;
+  String ay;
+  String az;
+  String posture;
+};
 
 struct PatternState {
   bool active = false;
@@ -140,6 +156,15 @@ String formatIntOrEmpty(float value, int minValue, int maxValue) {
   }
   return String((int)round(value));
 }
+
+String valueOrFallback(const String& value, const char* fallbackValue) {
+  if (value.length() > 0) {
+    return value;
+  }
+  return USE_APP_SAFE_FALLBACK_VALUES ? String(fallbackValue) : String("");
+}
+
+bool i2cDevicePresent(uint8_t address);
 
 void setLedRaw(bool redOn, bool greenOn, bool blueOn) {
   digitalWrite(LED_R_PIN, COMMON_ANODE_LED ? !redOn : redOn);
@@ -333,6 +358,11 @@ String readSkinTemp() {
 
   float tempC = NAN;
   if (!readMax30205(tempC)) {
+    static bool tempReadFailLogged = false;
+    if (!tempReadFailLogged) {
+      Serial.println("[SENSOR] MAX30205 READ FAILED - TEMP fallback enabled");
+      tempReadFailLogged = true;
+    }
     return "";
   }
   return formatFloatOrEmpty(tempC, 25.0, 45.0, 1);
@@ -356,18 +386,27 @@ String readHumidity() {
   return formatIntOrEmpty(humidity, 0, 100);
 }
 
-String readHeartRate() {
+void updateHeartSensor() {
   if (!max30102Ready) {
-    return "";
+    pulse.fingerDetected = false;
+    return;
   }
 
+  unsigned long now = millis();
+  if (now - pulse.lastSampleMs < MAX30102_SAMPLE_INTERVAL_MS) {
+    return;
+  }
+  pulse.lastSampleMs = now;
+
   long irValue = particleSensor.getIR();
-  if (irValue < MAX30102_MIN_IR) {
-    return "";
+  long redValue = particleSensor.getRed();
+  pulse.fingerDetected = irValue >= MAX30102_MIN_IR && redValue > 0;
+
+  if (!pulse.fingerDetected) {
+    return;
   }
 
   if (checkForBeat(irValue)) {
-    long now = millis();
     long delta = now - pulse.lastBeatMs;
     pulse.lastBeatMs = now;
 
@@ -387,30 +426,32 @@ String readHeartRate() {
         }
         if (count > 0) {
           pulse.avgBpm = (float)total / count;
+          pulse.latestHr = (int)round(pulse.avgBpm);
         }
       }
     }
   }
 
-  return formatIntOrEmpty(pulse.avgBpm, 40, 220);
+  // 앱 연동용 참고값입니다. 의료용 SpO2가 아니라 red/IR 비율 기반의 간이 추정값입니다.
+  float ratio = (float)redValue / (float)irValue;
+  int estimatedSpo2 = (int)round(110.0f - 25.0f * ratio);
+  if (estimatedSpo2 >= 70 && estimatedSpo2 <= 100) {
+    pulse.latestSpo2 = estimatedSpo2;
+  }
+}
+
+String readHeartRate() {
+  if (!max30102Ready || !pulse.fingerDetected || pulse.latestHr <= 0) {
+    return "";
+  }
+  return String(pulse.latestHr);
 }
 
 String readSpo2() {
-  if (!max30102Ready) {
+  if (!max30102Ready || !pulse.fingerDetected || pulse.latestSpo2 <= 0) {
     return "";
   }
-
-  long irValue = particleSensor.getIR();
-  long redValue = particleSensor.getRed();
-  if (irValue < MAX30102_MIN_IR || redValue <= 0) {
-    return "";
-  }
-
-  // Lightweight wearable estimate for app-side reference only.
-  // Final medical-grade SpO2 requires calibration and a proper algorithm.
-  float ratio = (float)redValue / (float)irValue;
-  float spo2 = 110.0f - 25.0f * ratio;
-  return formatIntOrEmpty(spo2, 70, 100);
+  return String(pulse.latestSpo2);
 }
 
 String readHeartRateForApp() {
@@ -419,47 +460,90 @@ String readHeartRateForApp() {
     return hr;
   }
 
-  if (max30102Ready) {
-    long irValue = particleSensor.getIR();
-    if (irValue >= MAX30102_MIN_IR) {
-      return String(FALLBACK_HR);
-    }
+  if (max30102Ready && pulse.fingerDetected) {
+    return String(FALLBACK_HR);
   }
 
   return valueOrFallback("", FALLBACK_HR);
 }
 
-String readPosture() {
-  if (!mpuReady) {
-    return "NORMAL";
+bool readMpuRawAccel(float& ax, float& ay, float& az) {
+  uint8_t address = i2cDevicePresent(MPU6050_ADDR_PRIMARY) ? MPU6050_ADDR_PRIMARY : MPU6050_ADDR_SECONDARY;
+
+  Wire.beginTransmission(address);
+  Wire.write(0x3B);
+  if (Wire.endTransmission(false) != 0) {
+    return false;
   }
 
-  sensors_event_t accel;
-  sensors_event_t gyro;
-  sensors_event_t temp;
-  mpu.getEvent(&accel, &gyro, &temp);
+  if (Wire.requestFrom((int)address, 6) != 6) {
+    return false;
+  }
 
-  float ax = accel.acceleration.x;
-  float ay = accel.acceleration.y;
-  float az = accel.acceleration.z;
+  int16_t rawAx = ((int16_t)Wire.read() << 8) | Wire.read();
+  int16_t rawAy = ((int16_t)Wire.read() << 8) | Wire.read();
+  int16_t rawAz = ((int16_t)Wire.read() << 8) | Wire.read();
+
+  // MPU6050 기본 +/-2g 스케일 기준입니다. 앱에는 m/s^2 단위로 전달합니다.
+  ax = ((float)rawAx / 16384.0f) * 9.80665f;
+  ay = ((float)rawAy / 16384.0f) * 9.80665f;
+  az = ((float)rawAz / 16384.0f) * 9.80665f;
+  return true;
+}
+
+MotionSample readMotionSample() {
+  MotionSample sample = { "", "", "", "NORMAL" };
+  if (!mpuReady && !mpuRawReady) {
+    return sample;
+  }
+
+  float ax = NAN;
+  float ay = NAN;
+  float az = NAN;
+  float gyroTotal = 0.0f;
+
+  if (mpuReady) {
+    sensors_event_t accel;
+    sensors_event_t gyro;
+    sensors_event_t temp;
+    mpu.getEvent(&accel, &gyro, &temp);
+    ax = accel.acceleration.x;
+    ay = accel.acceleration.y;
+    az = accel.acceleration.z;
+    gyroTotal = sqrt(
+      gyro.gyro.x * gyro.gyro.x +
+      gyro.gyro.y * gyro.gyro.y +
+      gyro.gyro.z * gyro.gyro.z
+    );
+  } else if (!readMpuRawAccel(ax, ay, az)) {
+    return sample;
+  }
+
+  sample.ax = formatFloatOrEmpty(ax, -80.0, 80.0, 2);
+  sample.ay = formatFloatOrEmpty(ay, -80.0, 80.0, 2);
+  sample.az = formatFloatOrEmpty(az, -80.0, 80.0, 2);
+
   float gForce = sqrt(ax * ax + ay * ay + az * az) / 9.80665f;
   float tiltDeg = atan2(sqrt(ax * ax + ay * ay), abs(az)) * 180.0f / PI;
-  float gyroTotal = sqrt(
-    gyro.gyro.x * gyro.gyro.x +
-    gyro.gyro.y * gyro.gyro.y +
-    gyro.gyro.z * gyro.gyro.z
-  );
 
   if (gForce > 2.6 || gForce < 0.35) {
-    return "FALL";
+    sample.posture = "FALL";
+    return sample;
   }
   if (tiltDeg > 70 && gyroTotal > 2.5) {
-    return "UNSTABLE";
+    sample.posture = "UNSTABLE";
+    return sample;
   }
   if (tiltDeg > 45 || gyroTotal > 3.5) {
-    return "WARNING";
+    sample.posture = "WARNING";
+    return sample;
   }
-  return "NORMAL";
+  sample.posture = "NORMAL";
+  return sample;
+}
+
+String readPosture() {
+  return readMotionSample().posture;
 }
 
 String readLux() {
@@ -481,6 +565,9 @@ String buildFakePayload() {
   float envTemp = 30.0 + ((int)(t % 8)) * 0.2;
   int hum = 58 + (int)(t % 6);
   int lux = 8000 + (int)((t % 10) * 500);
+  float ax = ((int)(t % 9) - 4) * 0.15;
+  float ay = ((int)(t % 7) - 3) * 0.12;
+  float az = 9.7 + ((int)(t % 5) - 2) * 0.08;
 
   String payload = "";
   if (USE_PACKET_MARKERS) {
@@ -501,6 +588,12 @@ String buildFakePayload() {
   payload += String(hum);
   payload += ",LUX:";
   payload += String(lux);
+  payload += ",AX:";
+  payload += String(ax, 2);
+  payload += ",AY:";
+  payload += String(ay, 2);
+  payload += ",AZ:";
+  payload += String(az, 2);
   payload += ",POSTURE:NORMAL";
 
   if (USE_PACKET_MARKERS) {
@@ -510,25 +603,24 @@ String buildFakePayload() {
   return payload;
 }
 
-String valueOrFallback(const String& value, const char* fallbackValue) {
-  if (value.length() > 0) {
-    return value;
-  }
-  return USE_APP_SAFE_FALLBACK_VALUES ? String(fallbackValue) : String("");
-}
-
 String buildPayload() {
   if (FAKE_DATA_TEST_MODE) {
     return buildFakePayload();
   }
 
+  // 체온 센서 미연결 상태에서도 앱 연동 테스트가 끊기지 않도록 안전값을 사용한다.
+  // MAX30205가 정상 연결되면 실제 측정값이 우선 사용되고, 실패할 때만 fallback이 들어간다.
   String temp = valueOrFallback(readSkinTemp(), FALLBACK_TEMP);
-  String hr = readHeartRateForApp();
-  String spo2 = readSpo2();
+  String hr = valueOrFallback(readHeartRateForApp(), FALLBACK_HR);
+  String spo2 = valueOrFallback(readSpo2(), FALLBACK_SPO2);
   String env = valueOrFallback(readEnvTemp(), FALLBACK_ENV);
   String hum = valueOrFallback(readHumidity(), FALLBACK_HUM);
   String lux = valueOrFallback(readLux(), FALLBACK_LUX);
-  String posture = readPosture();
+  MotionSample motion = readMotionSample();
+  String ax = valueOrFallback(motion.ax, FALLBACK_AXIS);
+  String ay = valueOrFallback(motion.ay, FALLBACK_AXIS);
+  String az = valueOrFallback(motion.az, FALLBACK_AXIS);
+  String posture = valueOrFallback(motion.posture, FALLBACK_POSTURE);
 
   String payload = "";
   if (USE_PACKET_MARKERS) {
@@ -549,6 +641,12 @@ String buildPayload() {
   payload += hum;
   payload += ",LUX:";
   payload += lux;
+  payload += ",AX:";
+  payload += ax;
+  payload += ",AY:";
+  payload += ay;
+  payload += ",AZ:";
+  payload += az;
   payload += ",POSTURE:";
   payload += posture;
 
@@ -557,7 +655,7 @@ String buildPayload() {
   }
   payload += "\n";
 
-  if (payload.length() > 100) {
+  if (payload.length() > 120) {
     Serial.print("[WARN] Payload too long: ");
     Serial.println(payload.length());
   }
@@ -693,13 +791,35 @@ void initSensors() {
   }
   Serial.println(bmeReady ? "[SENSOR] BME280 OK" : "[SENSOR] BME280 NOT FOUND");
 
-  mpuReady = mpu.begin(MPU6050_ADDR, &Wire);
+  mpuReady = mpu.begin(MPU6050_ADDR_PRIMARY, &Wire);
+  if (!mpuReady) {
+    mpuReady = mpu.begin(MPU6050_ADDR_SECONDARY, &Wire);
+  }
+  mpuRawReady = false;
   if (mpuReady) {
     mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
     mpu.setGyroRange(MPU6050_RANGE_500_DEG);
     mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  } else if (i2cDevicePresent(MPU6050_ADDR_PRIMARY) || i2cDevicePresent(MPU6050_ADDR_SECONDARY)) {
+    uint8_t address = i2cDevicePresent(MPU6050_ADDR_PRIMARY) ? MPU6050_ADDR_PRIMARY : MPU6050_ADDR_SECONDARY;
+    Wire.beginTransmission(address);
+    Wire.write(0x6B);
+    Wire.write(0x00);
+    mpuRawReady = Wire.endTransmission() == 0;
+    if (mpuRawReady) {
+      Wire.beginTransmission(address);
+      Wire.write(0x1C);
+      Wire.write(0x00);
+      Wire.endTransmission();
+    }
   }
-  Serial.println(mpuReady ? "[SENSOR] MPU6050 OK" : "[SENSOR] MPU6050 NOT FOUND");
+  if (mpuReady) {
+    Serial.println("[SENSOR] MPU6050 OK");
+  } else if (mpuRawReady) {
+    Serial.println("[SENSOR] MPU6050 RAW OK");
+  } else {
+    Serial.println("[SENSOR] MPU6050 NOT FOUND");
+  }
 
   bh1750Ready = false;
   if (i2cDevicePresent(BH1750_ADDR_PRIMARY)) {
@@ -725,7 +845,7 @@ void initSensors() {
   Serial.println(max30102Ready ? "[SENSOR] MAX30102 OK" : "[SENSOR] MAX30102 NOT FOUND");
 
   max30205Ready = i2cDevicePresent(MAX30205_ADDR);
-  Serial.println(max30205Ready ? "[SENSOR] MAX30205 OK" : "[SENSOR] MAX30205 NOT FOUND");
+  Serial.println(max30205Ready ? "[SENSOR] MAX30205 OK" : "[SENSOR] MAX30205 NOT FOUND - TEMP fallback enabled");
 }
 
 void initOutputs() {
@@ -771,5 +891,6 @@ void loop() {
   updateLedForRisk();
   updateVibrationPattern();
   updateBuzzerPattern();
+  updateHeartSensor();
   sendNotifyIfReady();
 }
