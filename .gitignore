@@ -1,4 +1,17 @@
+# 공통 빌드 산출물
 build/
-HW/
+.pio/
 .vscode/
 .DS_Store
+
+# Android / Gradle 산출물과 개인 설정
+.gradle/
+**/build/
+**/app/build/
+**/local.properties
+*.iml
+**/.idea/workspace.xml
+**/.idea/caches/
+**/.externalNativeBuild/
+**/.cxx/
+**/captures/
