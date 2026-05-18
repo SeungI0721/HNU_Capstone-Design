@@ -1,3 +1,4 @@
+// 작업자 상세 화면에 전달할 최신 상태 스냅샷 데이터 파일
 package com.example.hnu_ppe_control.data
 
 data class WorkerDetailSnapshot(

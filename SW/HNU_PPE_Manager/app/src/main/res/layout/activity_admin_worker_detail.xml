@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layoutAdminWorkerDetailRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ss_bg"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/layoutDetailHeader"
+        android:layout_width="match_parent"
+        android:layout_height="86dp"
+        android:background="@color/ss_header"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp">
+
+        <TextView
+            android:id="@+id/txtDetailTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="상세 데이터"
+            android:textColor="#FFFFFF"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnCloseDetail"
+            android:layout_width="92dp"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_header_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="닫기"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/scrollWorkerDetail"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:id="@+id/layoutDetailContent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="18dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="24dp">
+
+            <TextView
+                android:id="@+id/txtDetailStatus"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_card"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="Firebase 데이터를 읽는 중입니다."
+                android:textColor="@color/ss_sub"
+                android:textSize="17sp" />
+
+            <LinearLayout
+                android:id="@+id/cardDeviceSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:id="@+id/txtWorkerId"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="workerId : -"
+                    android:textColor="@color/ss_dark"
+                    android:textSize="21sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtDeviceId"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="deviceId : -"
+                    android:textColor="@color/ss_dark"
+                    android:textSize="21sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtWorkLocation"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="작업 위치 : -"
+                    android:textColor="@color/ss_sub"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtRisk"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="현재 위험도 : -"
+                    android:textColor="@color/ss_red"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/cardSensorData"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="센서 데이터"
+                    android:textColor="@color/ss_dark"
+                    android:textSize="23sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtTemp"
+                    style="@style/AdminDetailText"
+                    android:text="피부 온도 : -" />
+
+                <TextView
+                    android:id="@+id/txtHeartRate"
+                    style="@style/AdminDetailText"
+                    android:text="심박수 : -" />
+
+                <TextView
+                    android:id="@+id/txtSpo2"
+                    style="@style/AdminDetailText"
+                    android:text="산소포화도 : -" />
+
+                <TextView
+                    android:id="@+id/txtEnvTemp"
+                    style="@style/AdminDetailText"
+                    android:text="주변 온도 : -" />
+
+                <TextView
+                    android:id="@+id/txtHumidity"
+                    style="@style/AdminDetailText"
+                    android:text="습도 : -" />
+
+                <TextView
+                    android:id="@+id/txtLux"
+                    style="@style/AdminDetailText"
+                    android:text="조도 : -" />
+
+                <TextView
+                    android:id="@+id/txtPosture"
+                    style="@style/AdminDetailText"
+                    android:text="자세 : -" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/cardConnectionData"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="연결 상태"
+                    android:textColor="@color/ss_dark"
+                    android:textSize="23sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtBleState"
+                    style="@style/AdminDetailText"
+                    android:text="BLE 상태 : -" />
+
+                <TextView
+                    android:id="@+id/txtRssi"
+                    style="@style/AdminDetailText"
+                    android:text="신호 세기 : -" />
+
+                <TextView
+                    android:id="@+id/txtLastUpdated"
+                    style="@style/AdminDetailText"
+                    android:text="마지막 업데이트 시간 : -" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

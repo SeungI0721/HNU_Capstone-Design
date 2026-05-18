@@ -1,3 +1,4 @@
+// MainActivity의 화면 요소 갱신과 버튼 이벤트 바인딩을 담당하는 파일
 package com.example.hnu_ppe_control.ui
 
 import android.app.Activity

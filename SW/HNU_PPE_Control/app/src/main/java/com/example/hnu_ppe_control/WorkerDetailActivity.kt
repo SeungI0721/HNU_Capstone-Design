@@ -1,3 +1,4 @@
+// 작업자의 최신 센서, BLE, 위험 상태 상세 정보를 표시하는 화면 파일
 package com.example.hnu_ppe_control
 
 import android.content.BroadcastReceiver

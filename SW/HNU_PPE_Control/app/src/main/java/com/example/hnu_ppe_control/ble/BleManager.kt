@@ -1,3 +1,4 @@
+// Smart Shield BLE 스캔, 연결, Notify 수신, Write 전송, 자동 재연결을 담당하는 파일
 package com.example.hnu_ppe_control.ble
 
 import android.bluetooth.BluetoothAdapter
@@ -54,6 +55,12 @@ class BleManager(
         private const val OFFLINE_TIMEOUT_MS = 30 * 1000L
         private const val REQUESTED_MTU = 128
         private const val RSSI_READ_INTERVAL_MS = 5000L
+        private val ALLOWED_RISK_COMMANDS = setOf(
+            "RISK:SAFE",
+            "RISK:CAUTION",
+            "RISK:DANGER",
+            "RISK:EMERGENCY"
+        )
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -91,6 +98,7 @@ class BleManager(
     fun isBluetoothEnabled(): Boolean = bluetoothAdapter?.isEnabled == true
 
     fun startScan() {
+        // 앱이 인식할 Smart Shield 장치만 콜백에서 선별합니다.
         bluetoothLeScanner = bluetoothAdapter?.bluetoothLeScanner
 
         if (bluetoothLeScanner == null) {
@@ -141,6 +149,7 @@ class BleManager(
     }
 
     fun connect(device: BluetoothDevice) {
+        // 중복 연결을 막고 마지막 장치를 저장해 비정상 해제 시 재연결에 사용합니다.
         if (!BlePermissionHelper.hasConnectPermission(context)) {
             listener.onBleStatusChanged("연결 권한 없음")
             return
@@ -177,6 +186,7 @@ class BleManager(
     }
 
     fun disconnectManually() {
+        // 사용자가 종료한 경우에는 자동 재연결을 멈추고 GATT 리소스를 정리합니다.
         isConnecting = false
         isManualDisconnect = true
         stopReconnect()
@@ -197,6 +207,11 @@ class BleManager(
     }
 
     fun writeRiskCommand(command: String) {
+        // ESP32가 약속한 위험도 명령만 전송해 오동작 명령을 차단합니다.
+        if (!ALLOWED_RISK_COMMANDS.contains(command)) {
+            listener.onWriteResult(command, started = false, reason = "invalid_command")
+            return
+        }
         if (lastSentRiskCommand == command) {
             listener.onWriteResult(command, started = false, reason = "duplicate")
             return
@@ -316,6 +331,7 @@ class BleManager(
     }
 
     private fun handleGattConnected(gatt: BluetoothGatt) {
+        // 연결 직후 MTU 협상, 서비스 탐색, Notify 준비 순서로 진행합니다.
         isConnecting = false
         isBleConnected = true
         isServiceDiscovered = false
@@ -359,6 +375,7 @@ class BleManager(
     }
 
     private fun handleGattDisconnected(status: Int) {
+        // 예기치 않은 해제는 마지막 장치로 재연결을 시도하고, 수동 해제는 즉시 정리합니다.
         Log.w(TAG, "BLE disconnected. status=$status")
         isConnecting = false
         isBleConnected = false
@@ -378,6 +395,7 @@ class BleManager(
     }
 
     private fun handleServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+        // HW와 공유하는 Service/Characteristic UUID가 모두 존재하는지 확인합니다.
         if (status != BluetoothGatt.GATT_SUCCESS) {
             isServiceDiscovered = false
             isNotifyReady = false
@@ -407,6 +425,7 @@ class BleManager(
     }
 
     private fun enableNotify(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+        // Android는 setCharacteristicNotification과 CCCD 쓰기를 모두 완료해야 Notify를 받습니다.
         if (!BlePermissionHelper.hasConnectPermission(context)) {
             listener.onBleStatusChanged("Notify 권한 없음")
             return
@@ -460,6 +479,7 @@ class BleManager(
     }
 
     private fun handleNotifyChunk(chunk: String) {
+        // ESP32 payload는 줄바꿈으로 끝나므로 조각 수신을 한 줄 단위로 복원합니다.
         notifyBuffer.append(chunk)
         while (true) {
             val lineEnd = notifyBuffer.indexOf("\n")
@@ -533,6 +553,7 @@ class BleManager(
     }
 
     private fun startReconnect() {
+        // 비정상 해제 후 제한 시간 동안만 주기적으로 재연결을 시도합니다.
         if (lastConnectedDevice == null || isReconnecting) return
         isReconnecting = true
         reconnectStartTime = System.currentTimeMillis()
@@ -571,6 +592,7 @@ class BleManager(
     }
 
     private fun startOfflineChecker() {
+        // 마지막 Notify 수신 시각 기준으로 수신 불안정/연결 끊김 상태를 표시합니다.
         lastDataReceivedTime = System.currentTimeMillis()
         if (isOfflineCheckerRunning) return
         isOfflineCheckerRunning = true

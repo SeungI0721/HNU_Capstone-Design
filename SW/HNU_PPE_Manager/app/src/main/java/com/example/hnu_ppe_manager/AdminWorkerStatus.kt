@@ -1,0 +1,180 @@
+// Firebase 작업자 상태 데이터를 관리자 앱에서 쓰는 형태로 정리하는 파일
+package com.example.hnu_ppe_manager
+
+import com.google.firebase.database.DataSnapshot
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+// 작업자 currentStatus 화면 표시용 데이터
+data class AdminWorkerStatus(
+    val workerId: String = "-",
+    val deviceId: String = "-",
+    val workLocationCode: String = "-",
+    val workLocationName: String = "-",
+    val riskLevel: String = "UNKNOWN",
+    val riskText: String = "",
+    val temp: Double? = null,
+    val hr: Int? = null,
+    val spo2: Int? = null,
+    val env: Double? = null,
+    val hum: Int? = null,
+    val lux: Int? = null,
+    val posture: String = "-",
+    val bleState: String = "-",
+    val rssiText: String = "-",
+    val lastUpdatedRaw: String = "-",
+    val lastUpdatedMillis: Long = 0L
+) {
+    // 위험도 계산 속성
+    val riskPriority: Int
+        get() = riskPriorityOf(riskLevel)
+
+    val riskKorean: String
+        get() = riskKoreanOf(riskLevel, riskText)
+
+    val displayLocation: String
+        get() = when {
+            workLocationName.isNotBlank() && workLocationName != "-" -> workLocationName
+            workLocationCode.isNotBlank() && workLocationCode != "-" -> workLocationCode
+            else -> "-"
+        }
+
+    // Firebase 스냅샷 변환과 정렬 기준
+    companion object {
+        fun fromSnapshot(workerKey: String, snapshot: DataSnapshot): AdminWorkerStatus {
+            val workerId = snapshot.child("workerId").stringValue(workerKey).ifBlank { workerKey }
+            val lastUpdatedValue = snapshot.child("lastUpdated").value ?: snapshot.child("updatedAt").value
+            val lastUpdatedMillis = parseLastUpdatedMillis(lastUpdatedValue)
+            val bleStateValue = snapshot.child("bleState").stringValue(
+                when (snapshot.child("bleConnected").value) {
+                    true -> "연결됨"
+                    false -> "연결 안 됨"
+                    else -> "-"
+                }
+            )
+            val rssiValue = snapshot.child("rssiText").stringValue(
+                snapshot.child("bleSignalLevel").stringValue(
+                    snapshot.child("bleRssi").stringValue("-")
+                )
+            )
+
+            return AdminWorkerStatus(
+                workerId = workerId,
+                deviceId = snapshot.child("deviceId").stringValue(
+                    snapshot.child("deviceName").stringValue("-")
+                ),
+                workLocationCode = snapshot.child("workLocationCode").stringValue("-"),
+                workLocationName = snapshot.child("workLocationName").stringValue("-"),
+                riskLevel = snapshot.child("riskLevel").stringValue("UNKNOWN").uppercase(Locale.US),
+                riskText = snapshot.child("riskText").stringValue(""),
+                temp = snapshot.child("temp").doubleValue(),
+                hr = snapshot.child("hr").intValue(),
+                spo2 = snapshot.child("spo2").intValue(),
+                env = snapshot.child("env").doubleValue(),
+                hum = snapshot.child("hum").intValue(),
+                lux = snapshot.child("lux").intValue(),
+                posture = snapshot.child("posture").stringValue("-"),
+                bleState = bleStateValue,
+                rssiText = rssiValue,
+                lastUpdatedRaw = formatLastUpdated(lastUpdatedValue, lastUpdatedMillis),
+                lastUpdatedMillis = lastUpdatedMillis
+            )
+        }
+
+        fun riskPriorityOf(level: String): Int {
+            return when (level.uppercase(Locale.US)) {
+                "EMERGENCY", "응급" -> 4
+                "DANGER", "위험" -> 3
+                "CAUTION", "주의" -> 2
+                "SAFE", "정상" -> 1
+                else -> 0
+            }
+        }
+
+        fun riskKoreanOf(level: String, fallback: String = ""): String {
+            return when (level.uppercase(Locale.US)) {
+                "EMERGENCY", "응급" -> "응급"
+                "DANGER", "위험" -> "위험"
+                "CAUTION", "주의" -> "주의"
+                "SAFE", "정상" -> "정상"
+                else -> fallback.ifBlank { "알 수 없음" }
+            }
+        }
+
+        fun compareByRiskAndTime(): Comparator<AdminWorkerStatus> {
+            return compareByDescending<AdminWorkerStatus> { it.riskPriority }
+                .thenByDescending { it.lastUpdatedMillis }
+        }
+
+        // Long 또는 문자열 시간값을 정렬용 millis로 변환
+        private fun parseLastUpdatedMillis(value: Any?): Long {
+            return when (value) {
+                is Long -> value
+                is Int -> value.toLong()
+                is Double -> value.toLong()
+                is Float -> value.toLong()
+                is String -> parseLastUpdatedText(value)
+                else -> 0L
+            }
+        }
+
+        private fun parseLastUpdatedText(text: String): Long {
+            text.toLongOrNull()?.let { return it }
+
+            val patterns = listOf(
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd'T'HH:mm:ss",
+                "yyyy/MM/dd HH:mm:ss"
+            )
+            for (pattern in patterns) {
+                runCatching {
+                    koreaDateFormat(pattern).parse(text)?.time
+                }.getOrNull()?.let { return it }
+            }
+            return 0L
+        }
+
+        private fun formatLastUpdated(value: Any?, millis: Long): String {
+            if (value is String && value.isNotBlank() && value.toLongOrNull() == null) return value
+            if (millis <= 0L) return "-"
+            return koreaDateFormat("yyyy-MM-dd HH:mm:ss").format(Date(millis))
+        }
+
+        private fun koreaDateFormat(pattern: String): SimpleDateFormat {
+            return SimpleDateFormat(pattern, Locale.KOREA).apply {
+                timeZone = TimeZone.getTimeZone("Asia/Seoul")
+            }
+        }
+    }
+}
+
+// Firebase 문자열 필드 안전 변환
+private fun DataSnapshot.stringValue(defaultValue: String): String {
+    return value?.toString()?.takeIf { it.isNotBlank() } ?: defaultValue
+}
+
+// Firebase 실수 필드 안전 변환
+private fun DataSnapshot.doubleValue(): Double? {
+    return when (val current = value) {
+        is Double -> current
+        is Float -> current.toDouble()
+        is Long -> current.toDouble()
+        is Int -> current.toDouble()
+        is String -> current.toDoubleOrNull()
+        else -> null
+    }
+}
+
+// Firebase 정수 필드 안전 변환
+private fun DataSnapshot.intValue(): Int? {
+    return when (val current = value) {
+        is Long -> current.toInt()
+        is Int -> current
+        is Double -> current.toInt()
+        is Float -> current.toInt()
+        is String -> current.toIntOrNull()
+        else -> null
+    }
+}

@@ -1,3 +1,4 @@
+// 작업자 앱의 BLE 연결, 센서 처리, 위험도 판단, Firebase 업로드 흐름을 제어하는 파일
 package com.example.hnu_ppe_control
 
 import android.Manifest
@@ -70,6 +71,8 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     private var workStartedAtMillis: Long? = null
     private var workEndedAtMillis: Long? = null
     private var baselinePosture: String? = null
+    private var baselineTemp: Double? = null
+    private var baselineHr: Int? = null
     private var bleSignalLevel = BleSignalLevel.NOT_CONNECTED
     private var bleRssi: Int? = null
     private var currentBleState = "연결 전"
@@ -83,6 +86,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // 앱 실행에 필요한 관리자 객체와 기본 화면 상태를 준비합니다.
         initManagers()
         initUi()
         requestNotificationPermissionIfNeeded()
@@ -123,6 +127,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     private fun showBleConnectDialog() {
         val canScan = ensureBleReady(requestPermission = true)
 
+        // 작업 위치와 BLE 기기 선택 상태를 새 연결 시도마다 초기화합니다.
         foundDeviceList.clear()
         dialogSelectedDeviceIndex = -1
         pendingWorkLocation = null
@@ -236,10 +241,13 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         val location = pendingWorkLocation ?: return
         val deviceInfo = foundDeviceList.getOrNull(dialogSelectedDeviceIndex) ?: return
 
+        // 선택한 작업 위치와 장치를 기준으로 작업 세션을 연결 준비 상태로 전환합니다.
         selectedWorkLocation = location
         workStartedAtMillis = null
         workEndedAtMillis = null
         baselinePosture = null
+        baselineTemp = null
+        baselineHr = null
         appSessionActive = false
         fakeTestMode = false
         bleSignalLevel = BleSignalLevel.DISCONNECTED
@@ -421,6 +429,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         val cleanedRawData = rawData.trim()
         Log.d(TAG, "Raw sensor data: $cleanedRawData")
 
+        // BLE Notify 한 줄을 파싱한 뒤 위험도, UI, Firebase, ESP32 제어 명령에 반영합니다.
         if (cleanedRawData.isEmpty()) {
             showParseError(rawData)
             return
@@ -432,7 +441,11 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             return
         }
 
-        val riskLevel = HeatstrokeAnalyzer.analyze(sensorData)
+        val riskLevel = HeatstrokeAnalyzer.analyze(
+            data = sensorData,
+            baselineTemp = HeatstrokeAnalyzer.sanitizeBaselineTemp(baselineTemp),
+            baselineHR = HeatstrokeAnalyzer.sanitizeBaselineHr(baselineHr)
+        )
         val command = RiskCommandMapper.toCommand(riskLevel)
         lastUpdatedAt = formatNow()
 
@@ -442,6 +455,12 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
 
         // 작업 시작 직후 정상 자세 기준값으로 사용합니다.
         if (baselinePosture == null) baselinePosture = sensorData.posture
+        if (baselineTemp == null && sensorData.posture.equals("NORMAL", ignoreCase = true)) {
+            baselineTemp = sensorData.temp
+        }
+        if (baselineHr == null && sensorData.posture.equals("NORMAL", ignoreCase = true)) {
+            baselineHr = sensorData.hr
+        }
 
         ui.showSensorData(sensorData, riskLevel, lastUpdatedAt)
         ui.showRisk(riskLevel)
@@ -592,32 +611,6 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     private fun openWorkerDetail() {
         updateWorkerDetailSnapshot()
         startActivity(Intent(this, WorkerDetailActivity::class.java))
-        /*
-        val sensorData = lastSensorData
-        val intent = Intent(this, WorkerDetailActivity::class.java).apply {
-            putExtra("workerId", sensorData?.id ?: workerIdFromConnectedDeviceName().orEmpty())
-            putExtra("workLocationCode", selectedWorkLocation?.code ?: "-")
-            putExtra("workLocationName", selectedWorkLocation?.name ?: "미선택")
-            putExtra("workStartedAt", formatMillis(workStartedAtMillis))
-            putExtra("bleState", currentBleState)
-            putExtra("bleSignalLevel", bleSignalLevel.label)
-            putExtra("bleRssi", bleRssi?.toString() ?: "-")
-            putExtra("riskLevel", lastRiskLevel.label)
-            putExtra("temp", sensorData?.temp?.let { "%.1f ℃".format(it) } ?: "-")
-            putExtra("hr", sensorData?.hr?.let { "$it bpm" } ?: "-")
-            putExtra("spo2", sensorData?.spo2?.let { "$it %" } ?: "-")
-            putExtra("env", sensorData?.env?.let { "%.1f ℃".format(it) } ?: "-")
-            putExtra("hum", sensorData?.hum?.let { "$it %" } ?: "-")
-            putExtra("lux", sensorData?.lux?.let { "$it lx" } ?: "-")
-            putExtra("posture", sensorData?.posture ?: "-")
-            putExtra("baselinePosture", baselinePosture ?: "-")
-            putExtra("weatherAlert", weatherSnapshot.alert)
-            putExtra("weatherRegion", weatherSnapshot.region)
-            putExtra("todayMaxTemp", weatherSnapshot.todayMaxTemp?.let { "%.1f ℃".format(it) } ?: "-")
-            putExtra("lastUpdatedAt", lastUpdatedAt)
-        }
-        startActivity(intent)
-        */
     }
 
     private fun updateWorkerDetailSnapshot() {
@@ -680,7 +673,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     }
 
     private fun prepareWeatherPlaceholder() {
-        // 기상청 데이터는 지역 단위 참고 정보입니다. TODO: 기상청 API 연동 시 특보와 오늘 최고기온을 갱신합니다.
+        // 기상청 연동 전까지 지역 단위 참고값을 기본 상태로 표시합니다.
         weatherSnapshot = WeatherSnapshot(alert = "연결 전", todayMaxTemp = null, region = "대전")
         ui.showWeather(weatherSnapshot.alert, weatherSnapshot.todayMaxTemp, weatherSnapshot.region)
     }

@@ -1,3 +1,4 @@
+// 작업 지역 날씨 참고 정보를 UI와 Firebase에 전달하는 데이터 파일
 package com.example.hnu_ppe_control.data
 
 // 기상청 데이터는 지역 단위 참고 정보이며 현장 센서값이나 의료 판단으로 사용하지 않습니다.

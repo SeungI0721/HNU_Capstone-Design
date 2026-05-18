@@ -1,76 +1,175 @@
-# Smart Shield 작업자 앱
 
-Smart Shield 작업자 앱은 ESP32 기반 웨어러블 안전 장치와 BLE로 연결되어 작업자의 센서 데이터를 수신하고, 앱 내부에서 위험도를 계산한 뒤 UI 표시, Firebase 업로드, ESP32 위험 명령 전송, 작업자 알림을 수행하는 Android 앱입니다.
+# Smart Shield SW
 
-본 앱은 관리자 앱이 아니라 작업자 앱입니다.  
-관리자 앱은 Firebase 데이터를 읽기 전용으로 모니터링하는 별도 앱입니다.
+## 1. 폴더 개요
 
----
+이 폴더는 Smart Shield 프로젝트의 Android 소프트웨어를 포함한다.
 
-## 1. 개발 환경
+Smart Shield 소프트웨어는 작업자 앱과 관리자 앱으로 나뉜다.
 
-- Language: Kotlin
-- UI: XML 기반 Android View
-- Architecture: Activity 중심 구조
-- Android Gradle Plugin: 8.13.2
-- Kotlin Plugin: 2.0.21
-- Google Services Plugin: 4.4.4
-- compileSdk: 36
-- targetSdk: 36
-- minSdk: 26
-- Java Version: 17
-- Kotlin JVM Target: 17
+- 작업자 앱: ESP32 웨어러블 장치와 BLE로 연결하여 센서 데이터를 수신하고 위험도를 계산한다.
+- 관리자 앱: Firebase에 업로드된 작업자 상태를 읽어 전체 작업자 상태를 모니터링한다.
+
+> 작업자 앱과 관리자 앱의 역할은 분리되어 있다.  
+> 관리자 앱은 BLE 연결, 센서 데이터 파싱, 위험도 계산, ESP32 제어를 수행하지 않는다.
 
 ---
 
-## 2. 주요 의존성
+## 2. 폴더 구조
 
-```kotlin
-implementation("androidx.core:core-ktx:1.15.0")
-implementation("androidx.appcompat:appcompat:1.7.0")
-implementation("com.google.android.material:material:1.12.0")
-implementation("androidx.constraintlayout:constraintlayout:2.2.0")
-implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
-implementation("com.google.firebase:firebase-database")
+```text
+SW/
+├─ README.md
+├─ HNU_PPE_Control/
+│  ├─ README.md
+│  └─ app/
+│
+└─ HNU_PPE_Manager/
+   ├─ README.md
+   └─ app/
 ````
 
 ---
 
-## 3. 앱 목적
+## 3. 앱 구성
 
-Smart Shield 작업자 앱은 건설현장 작업자의 생체 데이터, 환경 데이터, 자세 상태를 수신하여 온열질환 위험 가능성과 이상 상태를 조기에 감지하기 위한 산업안전 보조 앱입니다.
-
-이 앱은 의료 진단 앱이 아니며, 센서값을 의료적 진단값으로 사용하지 않습니다.
+| 앱                 | 역할    |
+| ----------------- | ----- |
+| `HNU_PPE_Control` | 작업자 앱 |
+| `HNU_PPE_Manager` | 관리자 앱 |
 
 ---
 
-## 4. 전체 동작 흐름
+## 4. 작업자 앱
+
+작업자 앱은 실제 작업자가 사용하는 앱이다.
+
+ESP32 웨어러블 장치와 BLE로 연결하고, 센서 payload를 수신하여 위험도를 계산한다. 계산된 위험도는 앱 UI에 표시되고, ESP32로 BLE Write 명령을 전송하며, Firebase에 작업자 상태와 위험 로그를 업로드한다.
+
+### 주요 기능
+
+* ESP32 BLE 스캔
+* ESP32 BLE 연결
+* BLE Notify 수신
+* 센서 payload 파싱
+* 위험도 계산
+* 작업자 현재 상태 UI 표시
+* 위험 단계별 팝업 표시
+* 스마트폰 진동 경고
+* BLE Write로 ESP32 출력 장치 제어
+* Firebase 현재 상태 업로드
+* Firebase 위험 로그 저장
+* BLE 연결 끊김 감지
+* BLE 재연결 처리
+* 작업 세션 관리
+
+### 위치
 
 ```text
-ESP32 센서값 수집
+SW/HNU_PPE_Control/
+```
+
+---
+
+## 5. 관리자 앱
+
+관리자 앱은 관리자가 작업자 상태를 확인하기 위한 모니터링 앱이다.
+
+Firebase Realtime Database에 저장된 작업자 상태를 읽어 위험도, 작업 위치, BLE 연결 상태, 센서값, 마지막 업데이트 시각 등을 표시한다.
+
+관리자 앱은 읽기 전용 모니터링을 기준으로 한다.
+
+### 주요 기능
+
+* Firebase 작업자 목록 조회
+* 작업자 현재 상태 표시
+* 위험도별 작업자 구분
+* 응급 상태 작업자 우선 표시
+* 구역별 작업자 필터링
+* 작업자 상세 정보 표시
+* 위험 로그 확인
+* BLE 연결 상태 표시
+
+### 위치
+
+```text
+SW/HNU_PPE_Manager/
+```
+
+---
+
+## 6. 앱 책임 분리
+
+| 기능                 | 작업자 앱 | 관리자 앱 |
+| ------------------ | ----- | ----- |
+| BLE 스캔             | O     | X     |
+| BLE 연결             | O     | X     |
+| BLE Notify 수신      | O     | X     |
+| 센서 payload 파싱      | O     | X     |
+| 위험도 계산             | O     | X     |
+| ESP32 제어 명령 전송     | O     | X     |
+| 스마트폰 진동 경고         | O     | X     |
+| Firebase 현재 상태 업로드 | O     | X     |
+| Firebase 위험 로그 저장  | O     | X     |
+| Firebase 데이터 읽기    | O     | O     |
+| 전체 작업자 모니터링        | X     | O     |
+| 응급 작업자 우선 표시       | X     | O     |
+| 작업자 상세 상태 확인       | O     | O     |
+
+---
+
+## 7. 기술 스택
+
+| 구분     | 내용                         |
+| ------ | -------------------------- |
+| 언어     | Kotlin                     |
+| UI     | XML View                   |
+| 구조     | Activity 중심 구조             |
+| BLE    | Android Bluetooth LE GATT  |
+| DB     | Firebase Realtime Database |
+| 빌드 시스템 | Gradle                     |
+| IDE    | Android Studio             |
+
+---
+
+## 8. Android 프로젝트 기준
+
+두 앱은 Android Studio 프로젝트로 관리된다.
+
+기본 개발 기준은 다음과 같다.
+
+```text
+Language: Kotlin
+UI: XML Layout
+Architecture: Activity-centered
+Database: Firebase Realtime Database
+BLE: Android BLE GATT API
+```
+
+작업자 앱과 관리자 앱은 별도 Android 프로젝트로 관리한다.
+
+---
+
+## 9. BLE 통신 구조
+
+BLE 통신은 작업자 앱에서만 수행한다.
+
+```text
+ESP32
 → BLE Notify
-→ Android 작업자 앱 수신
-→ 센서 데이터 파싱
+→ 작업자 앱
 → 위험도 계산
-→ UI 표시
-→ Firebase 업로드
-→ BLE Write로 ESP32에 위험 명령 전송
-→ 작업자 팝업 및 스마트폰 진동 알림
+→ BLE Write
+→ ESP32 출력 장치 제어
 ```
+
+관리자 앱은 ESP32와 BLE로 연결하지 않는다.
 
 ---
 
-## 5. BLE 통신 구조
+## 10. BLE UUID
 
-ESP32는 BLE Peripheral 및 GATT Server로 동작하고, Android 작업자 앱은 BLE Central 및 GATT Client로 동작합니다.
-
-### BLE 장치 이름 규칙
-
-```text
-SS_0001
-```
-
-### BLE UUID
+작업자 앱과 ESP32는 동일한 UUID를 사용해야 한다.
 
 | 항목                           | UUID                                   |
 | ---------------------------- | -------------------------------------- |
@@ -81,376 +180,249 @@ SS_0001
 
 ---
 
-## 6. 센서 데이터 Payload 형식
+## 11. BLE Payload 예시
 
-ESP32에서 앱으로 전달하는 BLE Notify payload 예시는 다음과 같습니다.
-
-```text
-ID:0001,TEMP:36.5,HR:102,SPO2:97,ENV:33.1,HUM:71,LUX:45000,POSTURE:NORMAL
-```
-
-### 필드 설명
-
-| 필드      | 의미        |
-| ------- | --------- |
-| ID      | 작업자 ID    |
-| TEMP    | 피부 접촉 온도  |
-| HR      | 심박수       |
-| SPO2    | 산소포화도 추정값 |
-| ENV     | 주변 온도     |
-| HUM     | 습도        |
-| LUX     | 조도        |
-| POSTURE | 자세 상태     |
-
-### POSTURE 값
+작업자 앱은 ESP32에서 다음 형식의 payload를 수신한다.
 
 ```text
-NORMAL
-WARNING
-UNSTABLE
-FALL
-EMERGENCY
+ID:0001,TEMP:36.5,HR:102,SPO2:97,ENV:33.1,HUM:71,LUX:45000,AX:0.12,AY:-0.08,AZ:9.78,POSTURE:NORMAL
 ```
 
 ---
 
-## 7. 위험도 단계
+## 12. BLE Write 명령
 
-앱은 센서 데이터를 기반으로 위험도를 4단계로 구분합니다.
-
-| 단계        | 한글 표시 | ESP32 명령         |
-| --------- | ----- | ---------------- |
-| SAFE      | 정상    | `RISK:SAFE`      |
-| CAUTION   | 주의    | `RISK:CAUTION`   |
-| DANGER    | 위험    | `RISK:DANGER`    |
-| EMERGENCY | 응급    | `RISK:EMERGENCY` |
-
----
-
-## 8. 위험도 계산 방식
-
-현재 앱은 초기 구현 단계로 rule-based 방식의 위험도 계산을 사용합니다.
-
-계산에 사용하는 주요 값은 다음과 같습니다.
-
-* 피부 접촉 온도
-* 심박수
-* 산소포화도 추정값
-* 주변 온도
-* 습도
-* 조도
-* 자세 상태
-
-낙상 또는 응급 자세가 감지되면 다른 센서 점수와 관계없이 즉시 `EMERGENCY`로 판단합니다.
+작업자 앱은 계산된 위험도에 따라 ESP32로 다음 명령을 전송한다.
 
 ```text
-POSTURE:FALL
-POSTURE:EMERGENCY
-→ EMERGENCY
+RISK:SAFE
+RISK:CAUTION
+RISK:DANGER
+RISK:EMERGENCY
 ```
+
+| 명령               | 의미 |
+| ---------------- | -- |
+| `RISK:SAFE`      | 정상 |
+| `RISK:CAUTION`   | 주의 |
+| `RISK:DANGER`    | 위험 |
+| `RISK:EMERGENCY` | 응급 |
 
 ---
 
-## 9. Firebase 데이터 구조
+## 13. Firebase 구조
 
-작업자 앱은 Firebase Realtime Database에 현재 상태와 위험 로그를 업로드합니다.
+작업자 앱은 Firebase에 현재 상태와 위험 로그를 업로드한다.
 
-### 현재 상태
+관리자 앱은 해당 데이터를 읽어 모니터링한다.
 
 ```text
 workers/{workerId}/currentStatus
-```
-
-`currentStatus`는 관리자 앱이 실시간으로 읽는 덮어쓰기 경로입니다.
-
-저장 항목 예시:
-
-```text
-workerId
-deviceName
-temp
-hr
-spo2
-env
-hum
-lux
-directSunlight
-posture
-riskLevel
-riskCommand
-bleConnected
-appSessionActive
-updatedAt
-```
-
-### 위험 로그
-
-```text
 workers/{workerId}/riskLogs/{logId}
 ```
 
-`riskLogs`는 위험 또는 응급 이벤트를 누적 저장하는 경로입니다.
-
-위험 로그는 `DANGER` 또는 `EMERGENCY` 상태에서만 저장되며, 같은 위험 단계가 반복될 경우 중복 저장을 방지합니다.
-
----
-
-## 10. 사용자 알림
-
-위험 단계에 따라 앱은 작업자에게 팝업과 스마트폰 진동으로 알림을 제공합니다.
-
-| 단계        | 알림            |
-| --------- | ------------- |
-| SAFE      | 알림 없음         |
-| CAUTION   | 주의 팝업 + 짧은 진동 |
-| DANGER    | 위험 팝업 + 중간 진동 |
-| EMERGENCY | 응급 팝업 + 긴 진동  |
-
-같은 위험 단계에서는 팝업과 진동이 반복되지 않도록 중복 알림을 방지합니다.
-
----
-
-## 11. 백그라운드 동작
-
-앱은 Foreground Service를 사용하여 백그라운드에서도 BLE 센서 수신과 Firebase 업로드 상태를 유지합니다.
-
-Foreground Service 알림:
+예시:
 
 ```text
-Smart Shield 실행 중
-BLE 센서 수신과 Firebase 업로드를 유지합니다.
+workers/0001/currentStatus
+workers/0001/riskLogs/{logId}
 ```
 
 ---
 
-## 12. 재연결 정책
+## 14. 작업자 ID 규칙
 
-BLE 연결이 비정상적으로 끊어진 경우 앱은 자동 재연결을 시도합니다.
-
-* 재연결 주기: 3초
-* 최대 재연결 시간: 10분
-* 10분 초과 시 세션 종료
-* 수동 연결 해제 시 재연결하지 않음
-
----
-
-## 13. 데이터 수신 상태 감시
-
-앱은 마지막 데이터 수신 시각을 기준으로 BLE 데이터 상태를 판단합니다.
-
-| 조건            | 상태         |
-| ------------- | ---------- |
-| 정상 수신 중       | 데이터 수신 중   |
-| 10초 이상 데이터 없음 | 데이터 수신 불안정 |
-| 30초 이상 데이터 없음 | 데이터 오프라인   |
-
----
-
-## 14. Fake 데이터 테스트
-
-앱은 ESP32가 연결되지 않은 상황에서도 전체 처리 흐름을 검증할 수 있도록 Fake 데이터 테스트 기능을 제공합니다.
-
-Fake 데이터 테스트 버튼을 누르면 실제 BLE 수신 데이터와 동일한 형식의 payload가 생성되고, 실제 수신 데이터와 같은 흐름으로 처리됩니다.
-
-검증 가능한 기능:
+작업자 ID는 BLE 이름, payload ID, Firebase 경로에서 동일하게 사용한다.
 
 ```text
-센서 데이터 파싱
-위험도 계산
-UI 갱신
-Firebase 업로드
-ESP32 명령 생성
-위험 단계별 팝업 및 진동
+BLE Device Name: SS_0001
+Payload ID: 0001
+Firebase workerId: 0001
 ```
 
-Fake payload 예시:
+이 규칙을 유지해야 작업자 앱, 관리자 앱, Firebase 데이터가 같은 작업자를 기준으로 연결된다.
+
+---
+
+## 15. 위험도 단계
+
+Smart Shield는 위험도를 4단계로 구분한다.
+
+| 단계 | 영문 값      | ESP32 명령         | 설명           |
+| -- | --------- | ---------------- | ------------ |
+| 정상 | SAFE      | `RISK:SAFE`      | 위험 징후 없음     |
+| 주의 | CAUTION   | `RISK:CAUTION`   | 위험 가능성 증가    |
+| 위험 | DANGER    | `RISK:DANGER`    | 위험 상태 가능성 높음 |
+| 응급 | EMERGENCY | `RISK:EMERGENCY` | 즉시 확인 필요     |
+
+위험도는 작업자 앱에서 계산한다.
+
+관리자 앱은 Firebase에 저장된 위험도 값을 읽어 표시한다.
+
+---
+
+## 16. 센서 데이터 해석 기준
+
+본 프로젝트는 의료기기가 아니다.
+
+따라서 센서값은 의료 진단이 아니라 산업안전 보조 판단에 사용한다.
+
+| 데이터              | 해석 기준               |
+| ---------------- | ------------------- |
+| `TEMP`           | 피부 접촉 온도 변화 추적      |
+| `HR`             | 심박수 변화 기반 생리적 부담 추정 |
+| `SPO2`           | 응급 상태 보조 플래그        |
+| `ENV`            | 주변 온도               |
+| `HUM`            | 주변 습도               |
+| `LUX`            | 직사광선 노출 가능성 보조 지표   |
+| `AX`, `AY`, `AZ` | 활동량 및 자세 판단         |
+| `POSTURE`        | 자세 이상, 낙상 가능성 판단    |
+
+---
+
+## 17. 주의해야 할 표현
+
+### 사용 가능한 표현
+
+* 산업안전 보조 시스템
+* 온열질환 위험 가능성 조기 감지
+* 피부 접촉 온도 변화 추적
+* 심박수 변화 기반 생리적 부담 추정
+* IMU 기반 자세 이상 및 낙상 가능성 추정
+* 다중 센서 융합 기반 위험도 판단
+
+### 피해야 할 표현
+
+* 정확한 체온 측정
+* 의료급 산소포화도 측정
+* 온열질환 진단
+* 낙상 100% 감지
+* SpO2 기반 열스트레스 판단
+* HR > 120이면 무조건 위험
+* TEMP > 37.5이면 무조건 위험
+
+---
+
+## 18. Firebase 설정 파일
+
+각 Android 앱은 Firebase 연동을 위해 `google-services.json` 파일이 필요하다.
+
+일반적인 위치는 다음과 같다.
 
 ```text
-ID:0001,TEMP:36.5,HR:82,SPO2:98,ENV:28.5,HUM:55,LUX:8000,POSTURE:NORMAL
-ID:0001,TEMP:37.6,HR:105,SPO2:96,ENV:31.5,HUM:72,LUX:32000,POSTURE:NORMAL
-ID:0001,TEMP:38.1,HR:125,SPO2:94,ENV:34.2,HUM:81,LUX:42000,POSTURE:WARNING
-ID:0001,TEMP:37.8,HR:130,SPO2:91,ENV:35.5,HUM:85,LUX:52000,POSTURE:FALL
-ID:0001,TEMP:38.5,HR:140,SPO2:89,ENV:36.0,HUM:88,LUX:65000,POSTURE:EMERGENCY
+SW/HNU_PPE_Control/app/google-services.json
+SW/HNU_PPE_Manager/app/google-services.json
 ```
+
+공개 저장소에 업로드할 경우 Firebase Database Rules와 API Key 제한 설정을 확인해야 한다.
 
 ---
 
-## 15. 주요 파일 구조
+## 19. 빌드 산출물 관리
+
+Android 빌드 산출물은 Git에 포함하지 않는 것을 권장한다.
+
+제외 권장 경로:
 
 ```text
-MainActivity.kt
-├─ 앱 전체 흐름 제어
-├─ BLE 콜백 처리
-├─ 센서 데이터 수신 처리
-├─ 위험도 계산 호출
-├─ Firebase 업로드 호출
-└─ 알림 처리 호출
-
-ble/
-├─ BleManager.kt
-├─ BleConstants.kt
-└─ BlePermissionHelper.kt
-
-data/
-├─ SensorData.kt
-└─ RiskLevel.kt
-
-parser/
-└─ SensorDataParser.kt
-
-risk/
-├─ HeatstrokeAnalyzer.kt
-└─ RiskCommandMapper.kt
-
-firebase/
-├─ FirebaseStatusUploader.kt
-└─ RiskLogPolicy.kt
-
-alert/
-└─ AlertManager.kt
-
-service/
-├─ ForegroundServiceController.kt
-└─ SmartShieldForegroundService.kt
-
-test/
-└─ FakeSensorDataProvider.kt
-
-ui/
-└─ MainUiController.kt
+SW/HNU_PPE_Control/app/build/
+SW/HNU_PPE_Manager/app/build/
+SW/HNU_PPE_Control/build/
+SW/HNU_PPE_Manager/build/
 ```
+
+`.gitignore`에 다음 항목이 포함되어 있는지 확인한다.
+
+```gitignore
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+.DS_Store
+```
+
+빌드 산출물까지 Git에 넣는 건 저장소를 무겁게 만들 뿐이다. 굳이 코드 저장소에 디지털 먼지를 보관할 이유는 없다.
 
 ---
 
-## 16. 주요 파일 설명
+## 20. 실행 순서
 
-### MainActivity.kt
-
-앱의 중심 Activity입니다.
-BLE 스캔, 연결, 데이터 수신, 위험도 계산, Firebase 업로드, 알림 호출 등 전체 흐름을 제어합니다.
-
-### BleManager.kt
-
-BLE 스캔, 연결, GATT 서비스 탐색, Notify 활성화, 센서 데이터 수신, 위험 명령 Write, 자동 재연결을 담당합니다.
-
-### BleConstants.kt
-
-ESP32와 Android 앱이 공유하는 BLE UUID와 요청 코드를 관리합니다.
-
-### BlePermissionHelper.kt
-
-Android 버전별 BLE 권한 확인과 권한 요청을 담당합니다.
-
-### SensorDataParser.kt
-
-ESP32에서 받은 문자열 payload를 `SensorData` 객체로 변환하고, 필수 필드와 값 범위를 검증합니다.
-
-### HeatstrokeAnalyzer.kt
-
-센서 데이터와 자세 상태를 기반으로 위험 단계를 계산합니다.
-
-### RiskCommandMapper.kt
-
-위험 단계를 ESP32로 보낼 명령 문자열로 변환합니다.
-
-### FirebaseStatusUploader.kt
-
-Firebase Realtime Database에 현재 상태와 위험 로그를 업로드합니다.
-
-### RiskLogPolicy.kt
-
-위험 로그의 중복 저장을 방지합니다.
-
-### AlertManager.kt
-
-위험 단계별 팝업과 스마트폰 진동 알림을 담당합니다.
-
-### SmartShieldForegroundService.kt
-
-앱이 백그라운드에서도 실행 중임을 알림으로 유지합니다.
-
-### MainUiController.kt
-
-작업자 앱 화면 표시와 버튼 이벤트 연결을 담당합니다.
-
-### FakeSensorDataProvider.kt
-
-검증용 Fake 센서 payload를 생성합니다.
-
----
-
-## 17. Android 권한
-
-앱에서 사용하는 주요 권한은 다음과 같습니다.
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.VIBRATE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-```
-
-Android 11 이하 호환을 위해 다음 권한도 사용합니다.
-
-```xml
-<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
-```
-
----
-
-## 18. 주의 사항
-
-이 앱은 의료기기가 아닙니다.
-센서값을 기반으로 작업자의 위험 가능성을 조기에 감지하고 경고하는 산업안전 보조 앱입니다.
-
-따라서 다음과 같이 표현하지 않습니다.
+### 20-1. 작업자 앱
 
 ```text
-정확한 체온 측정
-의료급 산소포화도 측정
-온열질환 진단
-낙상 100% 감지
-센서 데이터만으로 응급 상태 진단
+SW/HNU_PPE_Control/
 ```
 
-권장 표현은 다음과 같습니다.
+1. Android Studio에서 프로젝트 열기
+2. Firebase 설정 파일 확인
+3. 앱 빌드
+4. Android 기기에서 실행
+5. Bluetooth 및 위치 권한 허용
+6. ESP32 BLE 장치 연결
+7. 작업 시작
+
+### 20-2. 관리자 앱
 
 ```text
-온열질환 위험 가능성 조기 감지
-피부 접촉 온도 변화 추적
-심박수 변화 기반 생리적 부담 추정
-IMU 기반 자세 이상 및 낙상 가능성 추정
-다중 센서 융합 기반 위험도 판단
-산업안전 보조 시스템
+SW/HNU_PPE_Manager/
 ```
+
+1. Android Studio에서 프로젝트 열기
+2. Firebase 설정 파일 확인
+3. 앱 빌드
+4. Android 기기에서 실행
+5. Firebase 작업자 상태 확인
 
 ---
 
-## 19. 향후 개선 방향
+## 21. 검증 항목
 
-* 개인 기준값 기반 `baselineHR`, `baselineTemp` 적용
-* 절대값 기반 위험도 계산에서 변화량 기반 위험도 계산으로 고도화
-* RSSI 기록 추가
-* 휴대폰 위치별 BLE 안정성 검증
-* 센서 신뢰도 보정
-* HR/SpO2 움직임 보정
-* BLE 끊김 횟수 및 재연결 시간 Firebase 기록
-* 관리자 앱과 연동한 실시간 모니터링 고도화
+### 작업자 앱 검증
+
+* BLE 스캔 가능 여부
+* ESP32 연결 가능 여부
+* BLE Notify 수신 여부
+* payload 파싱 여부
+* 위험도 계산 여부
+* BLE Write 명령 전송 여부
+* Firebase 현재 상태 업로드 여부
+* Firebase 위험 로그 저장 여부
+* Foreground Service 동작 여부
+* BLE 끊김 및 재연결 처리 여부
+
+### 관리자 앱 검증
+
+* Firebase 작업자 목록 읽기 여부
+* 작업자 위험도 표시 여부
+* 응급 작업자 우선 표시 여부
+* 구역별 필터 동작 여부
+* 작업자 상세 화면 표시 여부
+* 마지막 업데이트 시간 표시 여부
 
 ---
 
-## 20. 요약
+## 22. 관련 문서
 
-Smart Shield 작업자 앱은 BLE 기반으로 ESP32 웨어러블 장치의 센서 데이터를 수신하고, 위험도를 계산하여 작업자에게 즉시 알림을 제공하는 Android 앱입니다.
+| 경로                                  | 설명             |
+| ----------------------------------- | -------------- |
+| `../README.md`                      | 프로젝트 전체 README |
+| `../HW/README.md`                   | 하드웨어 전체 설명     |
+| `../HW/SmartShield_ESP32/README.md` | ESP32 펌웨어 설명   |
+| `HNU_PPE_Control/README.md`         | 작업자 앱 설명       |
+| `HNU_PPE_Manager/README.md`         | 관리자 앱 설명       |
 
-앱은 BLE Notify 수신, BLE Write 명령 전송, Firebase Realtime Database 업로드, Foreground Service 기반 백그라운드 유지, 자동 재연결, Fake 데이터 테스트 기능을 포함합니다.
+---
 
-본 앱은 의료 진단 목적이 아니라 건설현장 작업자의 위험 가능성을 조기에 감지하기 위한 산업안전 보조 시스템입니다.
+## 23. 최종 요약
 
-```
-```
+`SW` 폴더는 Smart Shield의 Android 소프트웨어를 관리한다.
+
+작업자 앱인 `HNU_PPE_Control`은 ESP32와 BLE로 연결하여 센서 데이터를 수신하고, 위험도를 계산한 뒤 Firebase에 작업자 상태를 업로드한다.
+
+관리자 앱인 `HNU_PPE_Manager`는 Firebase 데이터를 읽어 전체 작업자 상태를 모니터링한다.
+
+위험도 계산과 ESP32 제어는 작업자 앱에서만 수행하며, 관리자 앱은 읽기 전용 모니터링 앱으로 동작한다.

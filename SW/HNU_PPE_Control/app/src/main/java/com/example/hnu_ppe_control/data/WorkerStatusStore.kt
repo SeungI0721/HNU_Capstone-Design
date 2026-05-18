@@ -1,3 +1,4 @@
+// 작업자 최신 상태를 앱 내부와 SharedPreferences에 보관하는 파일
 package com.example.hnu_ppe_control.data
 
 import android.content.Context

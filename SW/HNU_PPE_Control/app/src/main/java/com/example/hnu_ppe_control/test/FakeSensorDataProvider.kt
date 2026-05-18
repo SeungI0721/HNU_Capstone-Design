@@ -1,3 +1,4 @@
+// 실제 BLE 장치 없이 앱 처리 흐름을 점검할 가짜 센서 payload 생성 파일
 package com.example.hnu_ppe_control.test
 
 object FakeSensorDataProvider {

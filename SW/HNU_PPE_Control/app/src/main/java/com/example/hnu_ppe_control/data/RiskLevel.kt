@@ -1,3 +1,4 @@
+// Smart Shield 앱에서 사용하는 위험 단계 enum을 정의하는 파일
 package com.example.hnu_ppe_control.data
 
 // 앱 내부 위험 단계와 작업자 화면 표시 문구를 함께 관리합니다.

@@ -1,3 +1,4 @@
+// Firebase Realtime Database에 작업자 현재 상태와 위험 로그를 업로드하는 파일
 package com.example.hnu_ppe_control.firebase
 
 import android.util.Log
