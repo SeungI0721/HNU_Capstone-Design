@@ -69,10 +69,11 @@ object SensorDataParser {
     }
 
     private fun hasRequiredKeys(cleanedData: String): Boolean {
-        // 필수 키 확인, SPO2는 선택값
+        // 필수 키 확인
         return cleanedData.contains("ID:") &&
             cleanedData.contains("TEMP:") &&
             cleanedData.contains("HR:") &&
+            cleanedData.contains("SPO2:") &&
             cleanedData.contains("ENV:") &&
             cleanedData.contains("HUM:") &&
             cleanedData.contains("LUX:") &&
@@ -94,12 +95,12 @@ object SensorDataParser {
     ): Boolean {
         // 위험도 계산 전 센서값 범위 검증
         if (temp.isNaN() || env.isNaN()) return false
-        if (temp < 30.0 || temp > 43.0) return false
+        if (temp < 20.0 || temp > 50.0) return false
         if (hr < 30 || hr > 220) return false
         if (spo2 != null && (spo2 < 50 || spo2 > 100)) return false
-        if (env < -20.0 || env > 60.0) return false
+        if (env < -40.0 || env > 85.0) return false
         if (hum < 0 || hum > 100) return false
-        if (lux < 0 || lux > 200000) return false
+        if (lux < 0) return false
 
         return true
     }
