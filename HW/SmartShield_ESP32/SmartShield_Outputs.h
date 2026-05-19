@@ -1,8 +1,10 @@
-/* Smart Shield 출력 모듈: LED, 진동 모터, 부저 경고 동작을 제어합니다. */
+/* Smart Shield 출력 모듈: RED LED, 진동 모터, 부저 경고 동작 제어 */
 #pragma once
 
+/*
+  기존 RGB LED 모듈 코드 보관
+
 void setLedRaw(bool redOn, bool greenOn, bool blueOn) {
-  // 공통 애노드/캐소드 차이를 흡수해 RGB LED를 동일한 방식으로 제어합니다.
   digitalWrite(LED_R_PIN, COMMON_ANODE_LED ? !redOn : redOn);
   digitalWrite(LED_G_PIN, COMMON_ANODE_LED ? !greenOn : greenOn);
   digitalWrite(LED_B_PIN, COMMON_ANODE_LED ? !blueOn : blueOn);
@@ -23,9 +25,37 @@ void setLedDanger() {
 void setLedOff() {
   setLedRaw(false, false, false);
 }
+*/
+
+const bool RED_LED_ACTIVE_HIGH = true;
+
+void setRedLed(bool on) {
+  // 단일 RED LED 출력
+  digitalWrite(LED_R_PIN, RED_LED_ACTIVE_HIGH ? on : !on);
+}
+
+void setLedSafe() {
+  // 정상 LED OFF
+  setRedLed(false);
+}
+
+void setLedCaution() {
+  // 경고 LED 깜빡임은 updateLedForRisk에서 처리
+  setRedLed(false);
+}
+
+void setLedDanger() {
+  // 위험 LED ON
+  setRedLed(true);
+}
+
+void setLedOff() {
+  // LED 전체 OFF
+  setRedLed(false);
+}
 
 void startPattern(struct PatternState& pattern, uint8_t pulses, uint16_t onMs, uint16_t offMs, bool repeat, uint16_t toneHz = 0) {
-  // 진동/부저의 반복 패턴 상태를 공통 구조체로 시작합니다.
+  // 진동/부저 패턴 상태 시작
   pattern.active = true;
   pattern.outputOn = false;
   pattern.pulsesDone = 0;
@@ -45,7 +75,7 @@ void stopPattern(struct PatternState& pattern) {
 }
 
 void updateVibrationPattern() {
-  // loop에서 호출되어 delay 없이 진동 모터 패턴을 갱신합니다.
+  // delay 없는 진동 패턴 갱신
   if (!vibrationPattern.active) {
     digitalWrite(VIBRATION_PIN, LOW);
     return;
@@ -88,7 +118,7 @@ void buzzerTone(uint16_t hz) {
 }
 
 void updateBuzzerPattern() {
-  // loop에서 호출되어 delay 없이 부저 패턴을 갱신합니다.
+  // delay 없는 부저 패턴 갱신
   if (!buzzerPattern.active) {
     buzzerTone(0);
     return;
@@ -121,7 +151,7 @@ void updateBuzzerPattern() {
 }
 
 void applyRiskOutput(uint8_t risk) {
-  // 위험 단계에 따라 LED, 진동, 부저의 경고 강도를 일괄 적용합니다.
+  // 위험 단계별 RED LED, 진동, 부저 적용
   currentRisk = risk;
   emergencyLedOn = false;
 
@@ -132,54 +162,57 @@ void applyRiskOutput(uint8_t risk) {
       stopPattern(buzzerPattern);
       digitalWrite(VIBRATION_PIN, LOW);
       buzzerTone(0);
-      Serial.println("[RISK] SAFE");
+      Serial.println("[RISK] SAFE - RED LED OFF");
       break;
 
     case RISK_CAUTION:
       setLedCaution();
       startPattern(vibrationPattern, 1, 200, 120, false);
       startPattern(buzzerPattern, 1, 200, 120, false, 1000);
-      Serial.println("[RISK] CAUTION");
+      Serial.println("[RISK] CAUTION - RED LED BLINK");
       break;
 
     case RISK_DANGER:
       setLedDanger();
       startPattern(vibrationPattern, 1, 300, 700, true);
       startPattern(buzzerPattern, 1, 300, 700, true, 2000);
-      Serial.println("[RISK] DANGER");
+      Serial.println("[RISK] DANGER - RED LED ON");
       break;
 
     case RISK_EMERGENCY:
       setLedDanger();
       startPattern(vibrationPattern, 1, 500, 300, true);
       startPattern(buzzerPattern, 1, 150, 150, true, 3000);
-      Serial.println("[RISK] EMERGENCY");
+      Serial.println("[RISK] EMERGENCY - RED LED ON");
       break;
   }
 }
 
 void updateLedForRisk() {
-  if (currentRisk != RISK_EMERGENCY) {
+  if (currentRisk != RISK_CAUTION) {
     return;
   }
 
   unsigned long now = millis();
-  if (now - lastBlinkMs >= 250) {
+  if (now - lastBlinkMs >= 500) {
     lastBlinkMs = now;
     emergencyLedOn = !emergencyLedOn;
-    if (emergencyLedOn) {
-      setLedDanger();
-    } else {
-      setLedOff();
-    }
+    setRedLed(emergencyLedOn);
   }
 }
 
 void initOutputs() {
-  // 출력 핀을 초기화하고 기본 안전 상태로 시작합니다.
+  // 출력 핀 초기화
   pinMode(LED_R_PIN, OUTPUT);
+
+  /*
+    기존 RGB LED 모듈 핀 초기화 보관
+    요청에 따라 RED LED만 사용
+
   pinMode(LED_G_PIN, OUTPUT);
   pinMode(LED_B_PIN, OUTPUT);
+  */
+
   pinMode(VIBRATION_PIN, OUTPUT);
 
   digitalWrite(VIBRATION_PIN, LOW);

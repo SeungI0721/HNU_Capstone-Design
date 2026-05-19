@@ -31,7 +31,7 @@ class SmartShieldForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // START는 상단 알림 표시, STOP은 알림 제거와 서비스 종료를 수행합니다.
+        // START 알림 표시, STOP 알림 제거와 서비스 종료
         when (intent?.action) {
             ACTION_STOP -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -69,7 +69,7 @@ class SmartShieldForegroundService : Service() {
     }
 
     private fun createNotificationChannel() {
-        // 알림 중요도는 낮게 설정하여 지속 실행 상태만 조용히 표시합니다.
+        // 낮은 중요도 알림으로 지속 실행 표시
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return
         }

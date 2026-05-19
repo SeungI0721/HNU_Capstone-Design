@@ -64,7 +64,7 @@ class AlertManager(
         message: String,
         vibrationTime: Long
     ) {
-        // 같은 위험 단계에서는 팝업과 진동을 반복하지 않습니다.
+        // 같은 위험 단계 팝업과 진동 반복 방지
         if (showingRiskLevel == riskLevel) {
             return
         }
@@ -82,7 +82,7 @@ class AlertManager(
     }
 
     private fun vibrate(duration: Long) {
-        // Android 버전에 맞는 진동 API를 사용합니다.
+        // Android 버전별 진동 API 사용
         if (!vibrator.hasVibrator()) {
             return
         }

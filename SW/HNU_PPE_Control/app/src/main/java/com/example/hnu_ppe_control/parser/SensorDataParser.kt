@@ -14,8 +14,12 @@ object SensorDataParser {
     )
 
     fun parse(rawData: String): SensorData? {
-        // 빈 문자열, 필드 누락, 타입 오류, 범위 오류, 자세 이상값을 모두 null로 방어
-        val cleanedData = rawData.trim()
+        // 빈 문자열, 필드 누락, 타입 오류, 범위 오류 방어
+        val cleanedData = rawData
+            .trim()
+            .removePrefix("<START>")
+            .removeSuffix("<END>")
+            .trim()
 
         if (cleanedData.isEmpty()) return null
         if (!hasRequiredKeys(cleanedData)) return null
@@ -65,7 +69,7 @@ object SensorDataParser {
     }
 
     private fun hasRequiredKeys(cleanedData: String): Boolean {
-        // 필수 키가 없으면 잘못된 데이터로 판단합니다. SPO2는 필수 검사에서 제외합니다.
+        // 필수 키 확인, SPO2는 선택값
         return cleanedData.contains("ID:") &&
             cleanedData.contains("TEMP:") &&
             cleanedData.contains("HR:") &&
@@ -76,7 +80,7 @@ object SensorDataParser {
     }
 
     private fun isValidWorkerId(id: String): Boolean {
-        // workerId는 BLE 이름, payload, Firebase 경로에서 같은 4자리 숫자입니다.
+        // BLE 이름, payload, Firebase 경로 공통 ID 형식
         return id.length == 4 && id.all { it.isDigit() }
     }
 
@@ -88,7 +92,7 @@ object SensorDataParser {
         hum: Int,
         lux: Int
     ): Boolean {
-        // 센서값이 비정상 범위를 벗어나면 위험도 계산 전에 버립니다.
+        // 위험도 계산 전 센서값 범위 검증
         if (temp.isNaN() || env.isNaN()) return false
         if (temp < 30.0 || temp > 43.0) return false
         if (hr < 30 || hr > 220) return false

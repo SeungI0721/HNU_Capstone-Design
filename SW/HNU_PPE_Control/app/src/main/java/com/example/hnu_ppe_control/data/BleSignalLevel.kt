@@ -1,7 +1,7 @@
 // BLE RSSI 값을 앱 표시용 신호 등급으로 변환하는 파일
 package com.example.hnu_ppe_control.data
 
-// 메인 화면에는 RSSI 숫자 대신 작업자가 이해하기 쉬운 신호 등급만 표시합니다.
+// RSSI 숫자 대신 작업자용 신호 등급 표시
 enum class BleSignalLevel(val label: String) {
     GOOD("좋음"),
     NORMAL("보통"),

@@ -16,7 +16,7 @@ class ForegroundServiceController(
     }
 
     fun startIfAllowed() {
-        // Android 12 이상에서는 connectedDevice Foreground Service에 BLE 연결 권한이 필요합니다.
+        // Android 12 이상 connectedDevice 권한 확인
         if (!BlePermissionHelper.hasConnectPermission(context)) {
             Log.w(TAG, "Foreground service start skipped. BLUETOOTH_CONNECT permission is missing.")
             return

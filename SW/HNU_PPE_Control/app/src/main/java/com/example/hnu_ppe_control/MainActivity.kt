@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        // 앱 실행에 필요한 관리자 객체와 기본 화면 상태를 준비합니다.
+        // 관리자 객체와 기본 화면 상태 준비
         initManagers()
         initUi()
         requestNotificationPermissionIfNeeded()
@@ -127,7 +127,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     private fun showBleConnectDialog() {
         val canScan = ensureBleReady(requestPermission = true)
 
-        // 작업 위치와 BLE 기기 선택 상태를 새 연결 시도마다 초기화합니다.
+        // 새 연결 시도마다 선택 상태 초기화
         foundDeviceList.clear()
         dialogSelectedDeviceIndex = -1
         pendingWorkLocation = null
@@ -241,7 +241,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         val location = pendingWorkLocation ?: return
         val deviceInfo = foundDeviceList.getOrNull(dialogSelectedDeviceIndex) ?: return
 
-        // 선택한 작업 위치와 장치를 기준으로 작업 세션을 연결 준비 상태로 전환합니다.
+        // 선택 위치와 장치 기준 연결 준비 전환
         selectedWorkLocation = location
         workStartedAtMillis = null
         workEndedAtMillis = null
@@ -429,7 +429,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         val cleanedRawData = rawData.trim()
         Log.d(TAG, "Raw sensor data: $cleanedRawData")
 
-        // BLE Notify 한 줄을 파싱한 뒤 위험도, UI, Firebase, ESP32 제어 명령에 반영합니다.
+        // BLE Notify 한 줄을 위험도, UI, Firebase, ESP32 명령에 반영
         if (cleanedRawData.isEmpty()) {
             showParseError(rawData)
             return
@@ -453,7 +453,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         lastRiskLevel = riskLevel
         lastRiskCommand = command
 
-        // 작업 시작 직후 정상 자세 기준값으로 사용합니다.
+        // 작업 시작 직후 정상 자세 기준값 저장
         if (baselinePosture == null) baselinePosture = sensorData.posture
         if (baselineTemp == null && sensorData.posture.equals("NORMAL", ignoreCase = true)) {
             baselineTemp = sensorData.temp
@@ -673,7 +673,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     }
 
     private fun prepareWeatherPlaceholder() {
-        // 기상청 연동 전까지 지역 단위 참고값을 기본 상태로 표시합니다.
+        // 기상청 연동 전 지역 단위 참고값 표시
         weatherSnapshot = WeatherSnapshot(alert = "연결 전", todayMaxTemp = null, region = "대전")
         ui.showWeather(weatherSnapshot.alert, weatherSnapshot.todayMaxTemp, weatherSnapshot.region)
     }

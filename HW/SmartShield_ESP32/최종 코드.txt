@@ -1,0 +1,109 @@
+최종 알고리즘 작성
+ 한남대학교 정보통신공학과
+ 이상근, https://github.com/tkdrms44519-lang
+
+public class HeatstrokeAnalyzer {
+    private static long motionStartTime = 0;
+    private static boolean isMotionStopped = false;
+
+    // 파라미터에 앱/서버에서 측정한 개인 기준값(baselineTemp, baselineHR)
+    public static int calculateDangerLevel(String bleData, double baselineTemp, int baselineHR) {
+        if (bleData == null || bleData.trim().isEmpty()) {
+            return 0;
+        }
+
+        try {
+            String[] sensorValues = bleData.split(",");
+            if (sensorValues.length != 9) return 0;
+
+            double skinTemp = Double.parseDouble(sensorValues[0]);
+            int heartRate   = Integer.parseInt(sensorValues[1]);
+            double envTemp  = Double.parseDouble(sensorValues[2]);
+            double envHum   = Double.parseDouble(sensorValues[3]);
+            double accX     = Double.parseDouble(sensorValues[4]);
+            double accY     = Double.parseDouble(sensorValues[5]);
+            double accZ     = Double.parseDouble(sensorValues[6]);
+            int spo2        = Integer.parseInt(sensorValues[7]);
+            int lux         = Integer.parseInt(sensorValues[8]);
+
+            // [1단계 필터링] 하드웨어 한계치 필터링
+            if (Double.isNaN(skinTemp) || Double.isNaN(envTemp) || Double.isNaN(envHum)) return 0;
+            if (skinTemp < 20.0 || skinTemp > 50.0) return 0;
+            if (envTemp < -40.0 || envTemp > 85.0) return 0;
+            if (envHum < 0.0 || envHum > 100.0) return 0;
+            if (heartRate < 30 || heartRate > 220) return 0;
+            if (spo2 < 50 || spo2 > 100) return 0;
+            if (lux < 0) return 0;
+
+            // 활동량 및 무반응 감지 
+            double accelVector = Math.sqrt(accX * accX + accY * accY + accZ * accZ);
+            boolean isStill = (accelVector > 8.5 && accelVector < 11.0);
+            boolean isHighActivity = (accelVector > 15.0);
+            boolean motionAbnormal = false;
+            long currentTime = System.currentTimeMillis();
+
+            if (isStill) {
+                if (!isMotionStopped) {
+                    motionStartTime = currentTime;
+                    isMotionStopped = true;
+                } else {
+                    long duration = currentTime - motionStartTime;
+                    if (duration >= 30000) {
+                        motionAbnormal = true;
+                    }
+                }
+            } else {
+                isMotionStopped = false;
+                motionStartTime = 0;
+            }
+
+            double heatIndex = envTemp + (0.05 * envHum);
+            
+            // 절대 온도가 아닌, 변화량(Delta) 계산
+            double deltaTemp = skinTemp - baselineTemp;
+            int deltaHR = heartRate - baselineHR;
+
+            int riskIndex = 0;
+
+            //  심박수 변화량(deltaHR) 가중치 
+            int tempHrScore = 0;
+            if (deltaHR >= 50) tempHrScore = 40;       // 평소보다 50 이상 폭증
+            else if (deltaHR >= 30) tempHrScore = 25;  // 평소보다 30 이상 상승
+            else if (deltaHR >= 20) tempHrScore = 10;
+            
+            if (isHighActivity) {
+                tempHrScore = tempHrScore / 2; // 활동 시 보정 (기존 동일)
+            }
+            riskIndex += tempHrScore;
+
+            //  피부온도 변화량(deltaTemp) 가중치 
+            if (deltaTemp >= 2.0) riskIndex += 40;      // 기준 온도 대비 2도 이상 상승
+            else if (deltaTemp >= 1.0) riskIndex += 25; 
+            else if (deltaTemp >= 0.5) riskIndex += 10;
+
+            //  환경(Heat Index) 가중치 
+            if (heatIndex >= 38.0) riskIndex += 20;
+            else if (heatIndex >= 35.0) riskIndex += 10;
+            else if (heatIndex >= 33.0) riskIndex += 5;
+
+            //  가속도 무반응 및 조도 가중치 
+            if (motionAbnormal) riskIndex += 40;
+            if (lux >= 50000) riskIndex += 15;
+            else if (lux >= 30000) riskIndex += 5;
+
+            // [최종 판단] 응급 보조 플래그 처리 
+            if (deltaTemp >= 2.5 || (deltaTemp >= 1.5 && motionAbnormal) || spo2 < 85) {
+                return 3;
+            }
+
+            if (riskIndex >= 80) return 3;
+            else if (riskIndex >= 55) return 2;
+            else if (riskIndex >= 25) return 1;
+            else return 0;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+}
