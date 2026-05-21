@@ -7,12 +7,12 @@ data class WorkLocation(
     val name: String
 ) {
     companion object {
-        val OPTIONS = listOf(
-            WorkLocation("A", "A동"),
-            WorkLocation("B", "B동"),
-            WorkLocation("PARKING", "주차장"),
-            WorkLocation("FRONT", "정문"),
-            WorkLocation("BACK", "후문")
+    val OPTIONS = listOf(
+        WorkLocation("LOC_ROOF", "옥상 방수 작업 구역"),
+        WorkLocation("LOC_WAREHOUSE", "실내 자재 창고"),
+        WorkLocation("LOC_OUTDOOR_A", "외부 철근 조립 구역"),
+        WorkLocation("LOC_BASEMENT", "지하 설비 점검 구역"),
+        WorkLocation("LOC_SCAFFOLD", "외부 비계 작업 구역")
         )
     }
 }

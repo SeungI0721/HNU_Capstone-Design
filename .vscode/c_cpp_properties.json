@@ -36,7 +36,7 @@
             ],
             "intelliSenseMode": "gcc-x64",
             "includePath": [
-                "${workspaceFolder}/HW/SmartShield_ESP32",
+                "D:\\HNU\\HW\\SmartShield_ESP32",
                 "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\tools\\esp32-libs\\3.3.8\\qio_qspi\\include",
                 "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\cores\\esp32",
                 "C:\\Users\\User\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8\\variants\\esp32",

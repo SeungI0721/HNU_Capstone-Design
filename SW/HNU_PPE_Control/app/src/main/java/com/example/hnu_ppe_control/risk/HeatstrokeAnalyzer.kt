@@ -80,9 +80,10 @@ object HeatstrokeAnalyzer {
 
         val spo2Emergency = data.spo2 != null && data.spo2 < 85
 
+        // 수정됨: 30초 무반응(motionAbnormal)을 독립적인 응급 조건으로 분리
         if (
             deltaTemp >= 2.5 ||
-            (deltaTemp >= 1.5 && motionResult.motionAbnormal) ||
+            motionResult.motionAbnormal ||
             spo2Emergency
         ) {
             return RiskLevel.EMERGENCY
@@ -216,12 +217,13 @@ object HeatstrokeAnalyzer {
         if (accY != null && accY.isNaN()) return false
         if (accZ != null && accZ.isNaN()) return false
 
+        // 수정됨: 에러 값(30, 50)이 정상 통과되지 않도록 포함 범위(in) 수정
         return data.temp in 20.0..50.0 &&
-            data.hr in 30..220 &&
-            data.env in -40.0..85.0 &&
-            data.hum in 0..100 &&
-            data.lux >= 0 &&
-            (spo2 == null || spo2 in 50..100)
+                data.hr in 31..220 &&
+                data.env in -40.0..85.0 &&
+                data.hum in 0..100 &&
+                data.lux >= 0 &&
+                (spo2 == null || spo2 in 51..100)
     }
 
     fun sanitizeBaselineTemp(value: Double?): Double {
