@@ -1,4 +1,3 @@
-// Firebase 작업자 상태 데이터를 관리자 앱에서 쓰는 형태로 정리하는 파일
 package com.example.hnu_ppe_manager
 
 import com.google.firebase.database.DataSnapshot
@@ -7,7 +6,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-// 작업자 currentStatus 화면 표시용 데이터
 data class AdminWorkerStatus(
     val workerId: String = "-",
     val deviceId: String = "-",
@@ -27,7 +25,6 @@ data class AdminWorkerStatus(
     val lastUpdatedRaw: String = "-",
     val lastUpdatedMillis: Long = 0L
 ) {
-    // 위험도 계산 속성
     val riskPriority: Int
         get() = riskPriorityOf(riskLevel)
 
@@ -41,7 +38,6 @@ data class AdminWorkerStatus(
             else -> "-"
         }
 
-    // Firebase 스냅샷 변환과 정렬 기준
     companion object {
         fun fromSnapshot(workerKey: String, snapshot: DataSnapshot): AdminWorkerStatus {
             val workerId = snapshot.child("workerId").stringValue(workerKey).ifBlank { workerKey }
@@ -50,7 +46,7 @@ data class AdminWorkerStatus(
             val bleStateValue = snapshot.child("bleState").stringValue(
                 when (snapshot.child("bleConnected").value) {
                     true -> "연결됨"
-                    false -> "연결 안 됨"
+                    false -> "연결 안됨"
                     else -> "-"
                 }
             )
@@ -108,7 +104,6 @@ data class AdminWorkerStatus(
                 .thenByDescending { it.lastUpdatedMillis }
         }
 
-        // Long 또는 문자열 시간값을 정렬용 millis로 변환
         private fun parseLastUpdatedMillis(value: Any?): Long {
             return when (value) {
                 is Long -> value
@@ -150,12 +145,10 @@ data class AdminWorkerStatus(
     }
 }
 
-// Firebase 문자열 필드 안전 변환
 private fun DataSnapshot.stringValue(defaultValue: String): String {
     return value?.toString()?.takeIf { it.isNotBlank() } ?: defaultValue
 }
 
-// Firebase 실수 필드 안전 변환
 private fun DataSnapshot.doubleValue(): Double? {
     return when (val current = value) {
         is Double -> current
@@ -167,7 +160,6 @@ private fun DataSnapshot.doubleValue(): Double? {
     }
 }
 
-// Firebase 정수 필드 안전 변환
 private fun DataSnapshot.intValue(): Int? {
     return when (val current = value) {
         is Long -> current.toInt()

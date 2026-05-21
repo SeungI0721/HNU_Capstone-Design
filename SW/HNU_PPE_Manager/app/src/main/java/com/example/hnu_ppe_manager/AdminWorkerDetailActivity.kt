@@ -1,4 +1,3 @@
-// 선택한 작업자의 Firebase 상세 상태를 읽어 표시하는 파일
 package com.example.hnu_ppe_manager
 
 import android.os.Bundle
@@ -12,10 +11,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import java.util.Locale
 
-// 작업자 상세 데이터 화면 Activity
 class AdminWorkerDetailActivity : AppCompatActivity() {
-
-    // 상세 화면 View 참조
     private lateinit var txtDetailStatus: TextView
     private lateinit var txtWorkerId: TextView
     private lateinit var txtDeviceId: TextView
@@ -32,11 +28,9 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
     private lateinit var txtRssi: TextView
     private lateinit var txtLastUpdated: TextView
 
-    // 상세 대상 작업자와 Firebase 리스너
     private var workerId: String = "-"
     private var statusListener: ValueEventListener? = null
 
-    // 화면 초기화 진입점
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AdminFirebaseConfig.initialize(this)
@@ -48,19 +42,16 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         showEmptyState()
     }
 
-    // 상세 데이터 실시간 읽기 시작
     override fun onStart() {
         super.onStart()
         startStatusListener()
     }
 
-    // 상세 데이터 리스너 정리
     override fun onStop() {
         stopStatusListener()
         super.onStop()
     }
 
-    // XML View 연결
     private fun bindViews() {
         txtDetailStatus = findViewById(R.id.txtDetailStatus)
         txtWorkerId = findViewById(R.id.txtWorkerId)
@@ -79,7 +70,6 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         txtLastUpdated = findViewById(R.id.txtLastUpdated)
     }
 
-    // workers/{workerId}/currentStatus 읽기 전용 리스너
     private fun startStatusListener() {
         if (workerId == "-") {
             txtDetailStatus.text = "작업자 ID가 없습니다."
@@ -95,6 +85,7 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         statusListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 if (!snapshot.exists()) {
+                    txtDetailStatus.visibility = View.VISIBLE
                     txtDetailStatus.text = "작업자 데이터가 없습니다."
                     showEmptyState()
                     return
@@ -114,7 +105,6 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         reference.addValueEventListener(statusListener as ValueEventListener)
     }
 
-    // 상세 데이터 리스너 제거
     private fun stopStatusListener() {
         val listener = statusListener ?: return
         FirebaseDatabase.getInstance()
@@ -126,17 +116,16 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         statusListener = null
     }
 
-    // Firebase 상태값을 상세 화면에 표시
     private fun renderStatus(status: AdminWorkerStatus) {
         txtWorkerId.text = "workerId : ${status.workerId}"
         txtDeviceId.text = "deviceId : ${status.deviceId}"
         txtWorkLocation.text = "작업 위치 : ${status.displayLocation}"
         txtRisk.text = "현재 위험도 : ${status.riskKorean}"
         txtRisk.setTextColor(riskColor(status.riskLevel))
-        txtTemp.text = "피부 온도 : ${status.temp.formatDouble("℃")}"
+        txtTemp.text = "체온 : ${status.temp.formatDouble("도")}"
         txtHeartRate.text = "심박수 : ${status.hr.formatInt("bpm")}"
         txtSpo2.text = "산소포화도 : ${status.spo2.formatInt("%")}"
-        txtEnvTemp.text = "주변 온도 : ${status.env.formatDouble("℃")}"
+        txtEnvTemp.text = "주변 온도 : ${status.env.formatDouble("도")}"
         txtHumidity.text = "습도 : ${status.hum.formatInt("%")}"
         txtLux.text = "조도 : ${status.lux.formatInt("lx")}"
         txtPosture.text = "자세 : ${status.posture}"
@@ -145,13 +134,12 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         txtLastUpdated.text = "마지막 업데이트 시간 : ${status.lastUpdatedRaw}"
     }
 
-    // 데이터가 없을 때 기본값 표시
     private fun showEmptyState() {
         txtWorkerId.text = "workerId : $workerId"
         txtDeviceId.text = "deviceId : -"
         txtWorkLocation.text = "작업 위치 : -"
         txtRisk.text = "현재 위험도 : -"
-        txtTemp.text = "피부 온도 : -"
+        txtTemp.text = "체온 : -"
         txtHeartRate.text = "심박수 : -"
         txtSpo2.text = "산소포화도 : -"
         txtEnvTemp.text = "주변 온도 : -"
@@ -163,7 +151,6 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         txtLastUpdated.text = "마지막 업데이트 시간 : -"
     }
 
-    // 위험도별 텍스트 색상 선택
     private fun riskColor(level: String): Int {
         val colorRes = when (level.uppercase(Locale.US)) {
             "SAFE", "정상" -> R.color.ss_green
@@ -175,12 +162,10 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
         return ContextCompat.getColor(this, colorRes)
     }
 
-    // 실수 센서값 표시 형식
     private fun Double?.formatDouble(unit: String): String {
         return this?.let { "%.1f $unit".format(Locale.KOREA, it) } ?: "-"
     }
 
-    // 정수 센서값 표시 형식
     private fun Int?.formatInt(unit: String): String {
         return this?.let { "$it $unit" } ?: "-"
     }

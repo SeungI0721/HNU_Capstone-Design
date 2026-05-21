@@ -1,4 +1,3 @@
-// 관리자 메인 화면에서 작업자 상태와 응급 작업자 목록 표시
 package com.example.hnu_ppe_manager
 
 import android.content.Intent
@@ -20,17 +19,13 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 
-// Firebase 상태를 화면에 반영하는 Activity
 class AdminMainActivity : AppCompatActivity() {
-
-    // 화면 이동과 갱신 주기 상수
     companion object {
         const val EXTRA_WORKER_ID = "extra_worker_id"
         private const val LOCATION_ALL = "전체"
         private const val REFRESH_INTERVAL_MILLIS = 15_000L
     }
 
-    // 메인 화면 View 참조
     private lateinit var btnMonitoring: TextView
     private lateinit var btnRefresh: TextView
     private lateinit var txtDangerEmpty: TextView
@@ -40,7 +35,6 @@ class AdminMainActivity : AppCompatActivity() {
     private lateinit var dangerAdapter: AdminWorkerAdapter
     private lateinit var workerAdapter: AdminWorkerAdapter
 
-    // 작업자 목록과 리스너 상태
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val workers = ArrayList<AdminWorkerStatus>()
     private val riskWorkers = ArrayList<AdminWorkerStatus>()
@@ -48,7 +42,6 @@ class AdminMainActivity : AppCompatActivity() {
     private var monitoring = false
     private var riskRealtimeListener: ValueEventListener? = null
 
-    // 전체 작업자 목록 15초 갱신
     private val refreshRunnable = object : Runnable {
         override fun run() {
             readWorkersOnce()
@@ -56,7 +49,6 @@ class AdminMainActivity : AppCompatActivity() {
         }
     }
 
-    // 화면 초기화
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AdminFirebaseConfig.initialize(this)
@@ -67,9 +59,9 @@ class AdminMainActivity : AppCompatActivity() {
         bindActions()
         renderLocationFilters()
         renderWorkers()
+        readWorkersOnce()
     }
 
-    // XML View 연결
     private fun bindViews() {
         btnMonitoring = findViewById(R.id.btnMonitoring)
         btnRefresh = findViewById(R.id.btnRefresh)
@@ -79,7 +71,6 @@ class AdminMainActivity : AppCompatActivity() {
         recyclerDangerWorkers = findViewById(R.id.recyclerDangerWorkers)
     }
 
-    // 작업자 목록 RecyclerView 연결
     private fun bindRecyclerViews() {
         dangerAdapter = AdminWorkerAdapter { openWorkerDetail(it) }
         workerAdapter = AdminWorkerAdapter { openWorkerDetail(it) }
@@ -95,7 +86,6 @@ class AdminMainActivity : AppCompatActivity() {
         }
     }
 
-    // 버튼 이벤트 연결
     private fun bindActions() {
         btnMonitoring.setOnClickListener {
             if (monitoring) stopMonitoring() else startMonitoring()
@@ -103,7 +93,6 @@ class AdminMainActivity : AppCompatActivity() {
         btnRefresh.setOnClickListener { readWorkersOnce() }
     }
 
-    // 모니터링 시작
     private fun startMonitoring() {
         if (monitoring) return
 
@@ -115,7 +104,6 @@ class AdminMainActivity : AppCompatActivity() {
         refreshHandler.postDelayed(refreshRunnable, REFRESH_INTERVAL_MILLIS)
     }
 
-    // 모니터링 종료
     private fun stopMonitoring() {
         monitoring = false
         btnMonitoring.text = "모니터링 시작"
@@ -123,7 +111,6 @@ class AdminMainActivity : AppCompatActivity() {
         stopRiskRealtimeListener()
     }
 
-    // 일반 작업자 목록 1회 읽기
     private fun readWorkersOnce() {
         FirebaseDatabase.getInstance()
             .reference
@@ -146,7 +133,7 @@ class AdminMainActivity : AppCompatActivity() {
                     workers.clear()
                     workers.addAll(loadedWorkers)
                     riskWorkers.clear()
-                    riskWorkers.addAll(loadedWorkers.filter { it.riskPriority == 4 })
+                    riskWorkers.addAll(loadedWorkers.filter { it.riskPriority >= 3 })
                     renderLocationFilters()
                     renderWorkers()
                 }
@@ -161,7 +148,6 @@ class AdminMainActivity : AppCompatActivity() {
             })
     }
 
-    // 응급 작업자 실시간 리스너 시작
     private fun startRiskRealtimeListener() {
         if (riskRealtimeListener != null) return
 
@@ -181,7 +167,7 @@ class AdminMainActivity : AppCompatActivity() {
                         workerSnapshot.key ?: "-",
                         currentStatus
                     )
-                    if (status.riskPriority == 4) loadedRiskWorkers.add(status)
+                    if (status.riskPriority >= 3) loadedRiskWorkers.add(status)
                 }
 
                 riskWorkers.clear()
@@ -201,7 +187,6 @@ class AdminMainActivity : AppCompatActivity() {
         workersReference.addValueEventListener(riskRealtimeListener as ValueEventListener)
     }
 
-    // 응급 작업자 실시간 리스너 제거
     private fun stopRiskRealtimeListener() {
         val listener = riskRealtimeListener ?: return
         FirebaseDatabase.getInstance()
@@ -211,7 +196,6 @@ class AdminMainActivity : AppCompatActivity() {
         riskRealtimeListener = null
     }
 
-    // 구역 필터 표시 갱신
     private fun renderLocationFilters() {
         val filters = buildLocationFilters()
         if (filters.none { it.name == selectedLocation }) selectedLocation = LOCATION_ALL
@@ -222,7 +206,6 @@ class AdminMainActivity : AppCompatActivity() {
         }
     }
 
-    // 작업자 데이터에서 구역 목록 생성
     private fun buildLocationFilters(): List<WorkLocationFilter> {
         val filters = ArrayList<WorkLocationFilter>()
         filters.add(WorkLocationFilter(LOCATION_ALL, LOCATION_ALL))
@@ -237,7 +220,6 @@ class AdminMainActivity : AppCompatActivity() {
         return filters
     }
 
-    // 구역 선택 칩 생성
     private fun createLocationChip(filter: WorkLocationFilter): TextView {
         val selected = filter.name == selectedLocation
         return TextView(this).apply {
@@ -267,7 +249,6 @@ class AdminMainActivity : AppCompatActivity() {
         }
     }
 
-    // 구역별 작업자 목록 갱신
     private fun renderWorkers() {
         val locationWorkers = workers
             .filter { selectedLocation == LOCATION_ALL || it.displayLocation == selectedLocation || it.workLocationCode == selectedLocation }
@@ -278,7 +259,6 @@ class AdminMainActivity : AppCompatActivity() {
         txtWorkerEmpty.visibility = if (locationWorkers.isEmpty()) View.VISIBLE else View.GONE
     }
 
-    // 응급 작업자 목록 갱신
     private fun renderDangerWorkers() {
         val emergencyWorkers = riskWorkers
             .sortedWith(AdminWorkerStatus.compareByRiskAndTime())
@@ -288,19 +268,16 @@ class AdminMainActivity : AppCompatActivity() {
         txtDangerEmpty.visibility = if (emergencyWorkers.isEmpty()) View.VISIBLE else View.GONE
     }
 
-    // 작업자 상세 화면 이동
     private fun openWorkerDetail(worker: AdminWorkerStatus) {
         val intent = Intent(this, AdminWorkerDetailActivity::class.java)
         intent.putExtra(EXTRA_WORKER_ID, worker.workerId)
         startActivity(intent)
     }
 
-    // dp를 px로 변환
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density).toInt()
     }
 
-    // 화면 종료 정리
     override fun onDestroy() {
         refreshHandler.removeCallbacks(refreshRunnable)
         stopRiskRealtimeListener()
