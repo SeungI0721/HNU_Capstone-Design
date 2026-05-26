@@ -1,7 +1,6 @@
-// Smart Shield 앱에서 사용하는 위험 단계 enum을 정의하는 파일
 package com.example.hnu_ppe_control.data
 
-// 앱 내부 위험 단계와 화면 표시 문구 관리
+// 앱 화면, Firebase 저장값, ESP32 제어 명령 매핑에서 공통으로 사용하는 위험 단계입니다.
 enum class RiskLevel(val label: String) {
     SAFE("정상"),
     CAUTION("주의"),
