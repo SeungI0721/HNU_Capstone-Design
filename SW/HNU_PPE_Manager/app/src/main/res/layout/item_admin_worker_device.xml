@@ -2,15 +2,18 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/layoutWorkerDeviceItem"
     android:layout_width="match_parent"
-    android:layout_height="178dp"
+    android:layout_height="wrap_content"
     android:layout_marginBottom="14dp"
     android:background="@drawable/bg_card"
     android:clickable="true"
     android:focusable="true"
     android:gravity="center_vertical"
+    android:minHeight="178dp"
     android:orientation="vertical"
+    android:paddingTop="18dp"
     android:paddingStart="20dp"
-    android:paddingEnd="20dp">
+    android:paddingEnd="20dp"
+    android:paddingBottom="18dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -94,4 +97,17 @@
             android:textSize="25sp"
             android:textStyle="bold" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/txtFirstEmergencyLog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:text="-"
+        android:textColor="@color/ss_emergency"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </LinearLayout>

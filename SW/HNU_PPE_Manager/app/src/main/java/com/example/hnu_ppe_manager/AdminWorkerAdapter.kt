@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.RecyclerView
 import java.util.Locale
 
 class AdminWorkerAdapter(
+    private val showFirstEmergencyLog: Boolean = false,
     private val onItemClicked: (AdminWorkerStatus) -> Unit
 ) : RecyclerView.Adapter<AdminWorkerAdapter.WorkerViewHolder>() {
     private val workers = ArrayList<AdminWorkerStatus>()
@@ -35,12 +36,21 @@ class AdminWorkerAdapter(
         private val txtDeviceIdValue: TextView = itemView.findViewById(R.id.txtDeviceIdValue)
         private val txtWorkLocationValue: TextView = itemView.findViewById(R.id.txtWorkLocationValue)
         private val txtRiskValue: TextView = itemView.findViewById(R.id.txtRiskValue)
+        private val txtFirstEmergencyLog: TextView = itemView.findViewById(R.id.txtFirstEmergencyLog)
 
         fun bind(worker: AdminWorkerStatus) {
             txtDeviceIdValue.text = worker.deviceId
             txtWorkLocationValue.text = worker.displayLocation
             txtRiskValue.text = worker.riskKorean
             txtRiskValue.setTextColor(riskColor(worker.riskLevel))
+            val dangerTimeText = when {
+                worker.firstEmergencyLogText != "-" -> "최초 응급 상황 발생 : ${worker.firstEmergencyLogText}"
+                worker.lastUpdatedRaw != "-" -> "마지막 업데이트 : ${worker.lastUpdatedRaw}"
+                else -> "-"
+            }
+            txtFirstEmergencyLog.visibility =
+                if (showFirstEmergencyLog && dangerTimeText != "-") View.VISIBLE else View.GONE
+            txtFirstEmergencyLog.text = dangerTimeText
             itemView.setOnClickListener { onItemClicked(worker) }
         }
 

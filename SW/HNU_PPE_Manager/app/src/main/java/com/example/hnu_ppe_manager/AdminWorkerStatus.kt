@@ -22,6 +22,8 @@ data class AdminWorkerStatus(
     val posture: String = "-",
     val bleState: String = "-",
     val rssiText: String = "-",
+    val firstEmergencyLogText: String = "-",
+    val firstEmergencyLogMillis: Long = 0L,
     val lastUpdatedRaw: String = "-",
     val lastUpdatedMillis: Long = 0L
 ) {
@@ -39,10 +41,16 @@ data class AdminWorkerStatus(
         }
 
     companion object {
-        fun fromSnapshot(workerKey: String, snapshot: DataSnapshot): AdminWorkerStatus {
+        fun fromSnapshot(
+            workerKey: String,
+            snapshot: DataSnapshot,
+            riskLogsSnapshot: DataSnapshot? = null,
+            riskLogSinceMillis: Long = 0L
+        ): AdminWorkerStatus {
             val workerId = snapshot.child("workerId").stringValue(workerKey).ifBlank { workerKey }
             val lastUpdatedValue = snapshot.child("lastUpdated").value ?: snapshot.child("updatedAt").value
             val lastUpdatedMillis = parseLastUpdatedMillis(lastUpdatedValue)
+            val firstEmergencyLog = firstEmergencyLogSummary(riskLogsSnapshot, riskLogSinceMillis)
             val bleStateValue = snapshot.child("bleState").stringValue(
                 when (snapshot.child("bleConnected").value) {
                     true -> "연결됨"
@@ -74,6 +82,8 @@ data class AdminWorkerStatus(
                 posture = snapshot.child("posture").stringValue("-"),
                 bleState = bleStateValue,
                 rssiText = rssiValue,
+                firstEmergencyLogText = firstEmergencyLog?.displayText ?: "-",
+                firstEmergencyLogMillis = firstEmergencyLog?.createdAtMillis ?: 0L,
                 lastUpdatedRaw = formatLastUpdated(lastUpdatedValue, lastUpdatedMillis),
                 lastUpdatedMillis = lastUpdatedMillis
             )
@@ -135,6 +145,47 @@ data class AdminWorkerStatus(
             if (value is String && value.isNotBlank() && value.toLongOrNull() == null) return value
             if (millis <= 0L) return "-"
             return koreaDateFormat("yyyy-MM-dd HH:mm:ss").format(Date(millis))
+        }
+
+        private fun firstEmergencyLogSummary(
+            snapshot: DataSnapshot?,
+            sinceMillis: Long
+        ): EmergencyLogSummary? {
+            return snapshot
+                ?.children
+                ?.mapNotNull { logSnapshot ->
+                    val level = logSnapshot.child("riskLevel").stringValue("").uppercase(Locale.US)
+                    if (level != "EMERGENCY") return@mapNotNull null
+
+                    val createdAtValue = logSnapshot.child("createdAt").value
+                        ?: logSnapshot.child("updatedAt").value
+                    val createdAtMillis = parseLastUpdatedMillis(createdAtValue)
+                    if (sinceMillis > 0L && createdAtMillis <= 0L) {
+                        return@mapNotNull null
+                    }
+                    if (sinceMillis > 0L && createdAtMillis in 1L until sinceMillis) {
+                        return@mapNotNull null
+                    }
+                    val message = logSnapshot.child("message").stringValue("")
+                    val formattedTime = formatLastUpdated(createdAtValue, createdAtMillis)
+                    EmergencyLogSummary(createdAtMillis, formattedTime, message)
+                }
+                ?.filter { it.createdAtMillis > 0L || it.message.isNotBlank() }
+                ?.minWithOrNull(compareBy<EmergencyLogSummary> {
+                    if (it.createdAtMillis > 0L) it.createdAtMillis else Long.MAX_VALUE
+                }.thenBy { it.formattedTime })
+        }
+
+        private data class EmergencyLogSummary(
+            val createdAtMillis: Long,
+            val formattedTime: String,
+            val message: String
+        ) {
+            val displayText: String
+                get() = listOf(formattedTime, message)
+                    .filter { it.isNotBlank() && it != "-" }
+                    .joinToString(" / ")
+                    .ifBlank { "-" }
         }
 
         private fun koreaDateFormat(pattern: String): SimpleDateFormat {

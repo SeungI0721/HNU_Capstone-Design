@@ -40,6 +40,7 @@ class AdminMainActivity : AppCompatActivity() {
     private val riskWorkers = ArrayList<AdminWorkerStatus>()
     private var selectedLocation = LOCATION_ALL
     private var monitoring = false
+    private var monitoringStartedAtMillis = 0L
     private var riskRealtimeListener: ValueEventListener? = null
 
     private val refreshRunnable = object : Runnable {
@@ -59,7 +60,6 @@ class AdminMainActivity : AppCompatActivity() {
         bindActions()
         renderLocationFilters()
         renderWorkers()
-        readWorkersOnce()
     }
 
     private fun bindViews() {
@@ -72,17 +72,19 @@ class AdminMainActivity : AppCompatActivity() {
     }
 
     private fun bindRecyclerViews() {
-        dangerAdapter = AdminWorkerAdapter { openWorkerDetail(it) }
+        dangerAdapter = AdminWorkerAdapter(showFirstEmergencyLog = true) { openWorkerDetail(it) }
         workerAdapter = AdminWorkerAdapter { openWorkerDetail(it) }
 
         recyclerDangerWorkers.apply {
             layoutManager = LinearLayoutManager(this@AdminMainActivity)
             adapter = dangerAdapter
+            isNestedScrollingEnabled = false
         }
 
         findViewById<RecyclerView>(R.id.recyclerWorkerDevices).apply {
             layoutManager = LinearLayoutManager(this@AdminMainActivity)
             adapter = workerAdapter
+            isNestedScrollingEnabled = false
         }
     }
 
@@ -97,7 +99,9 @@ class AdminMainActivity : AppCompatActivity() {
         if (monitoring) return
 
         monitoring = true
+        monitoringStartedAtMillis = System.currentTimeMillis()
         btnMonitoring.text = "모니터링 종료"
+        clearWorkerLists()
         readWorkersOnce()
         startRiskRealtimeListener()
         refreshHandler.removeCallbacks(refreshRunnable)
@@ -117,25 +121,7 @@ class AdminMainActivity : AppCompatActivity() {
             .child("workers")
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
-                    val loadedWorkers = ArrayList<AdminWorkerStatus>()
-
-                    for (workerSnapshot in snapshot.children) {
-                        val currentStatus = workerSnapshot.child("currentStatus")
-                        if (!currentStatus.exists()) continue
-                        loadedWorkers.add(
-                            AdminWorkerStatus.fromSnapshot(
-                                workerSnapshot.key ?: "-",
-                                currentStatus
-                            )
-                        )
-                    }
-
-                    workers.clear()
-                    workers.addAll(loadedWorkers)
-                    riskWorkers.clear()
-                    riskWorkers.addAll(loadedWorkers.filter { it.riskPriority >= 3 })
-                    renderLocationFilters()
-                    renderWorkers()
+                    updateWorkersFromSnapshot(snapshot)
                 }
 
                 override fun onCancelled(error: DatabaseError) {
@@ -157,22 +143,7 @@ class AdminMainActivity : AppCompatActivity() {
 
         riskRealtimeListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val loadedRiskWorkers = ArrayList<AdminWorkerStatus>()
-
-                for (workerSnapshot in snapshot.children) {
-                    val currentStatus = workerSnapshot.child("currentStatus")
-                    if (!currentStatus.exists()) continue
-
-                    val status = AdminWorkerStatus.fromSnapshot(
-                        workerSnapshot.key ?: "-",
-                        currentStatus
-                    )
-                    if (status.riskPriority >= 3) loadedRiskWorkers.add(status)
-                }
-
-                riskWorkers.clear()
-                riskWorkers.addAll(loadedRiskWorkers)
-                renderDangerWorkers()
+                updateWorkersFromSnapshot(snapshot)
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -185,6 +156,42 @@ class AdminMainActivity : AppCompatActivity() {
         }
 
         workersReference.addValueEventListener(riskRealtimeListener as ValueEventListener)
+    }
+
+    private fun updateWorkersFromSnapshot(snapshot: DataSnapshot) {
+        val loadedWorkers = ArrayList<AdminWorkerStatus>()
+
+        for (workerSnapshot in snapshot.children) {
+            val currentStatus = workerSnapshot.child("currentStatus")
+            if (!currentStatus.exists()) continue
+
+            val status = AdminWorkerStatus.fromSnapshot(
+                workerSnapshot.key ?: "-",
+                currentStatus,
+                workerSnapshot.child("riskLogs"),
+                monitoringStartedAtMillis
+            )
+            if (isNewMonitoringData(status)) loadedWorkers.add(status)
+        }
+
+        workers.clear()
+        workers.addAll(loadedWorkers)
+        riskWorkers.clear()
+        riskWorkers.addAll(loadedWorkers.filter { it.riskPriority >= 3 })
+        renderLocationFilters()
+        renderWorkers()
+    }
+
+    private fun isNewMonitoringData(status: AdminWorkerStatus): Boolean {
+        return monitoringStartedAtMillis > 0L && status.lastUpdatedMillis >= monitoringStartedAtMillis
+    }
+
+    private fun clearWorkerLists() {
+        workers.clear()
+        riskWorkers.clear()
+        selectedLocation = LOCATION_ALL
+        renderLocationFilters()
+        renderWorkers()
     }
 
     private fun stopRiskRealtimeListener() {
