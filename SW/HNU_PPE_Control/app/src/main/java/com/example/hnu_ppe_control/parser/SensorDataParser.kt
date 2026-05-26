@@ -38,6 +38,9 @@ object SensorDataParser {
 
         val id = dataMap["ID"] ?: return null
         val temp = dataMap["TEMP"]?.toDoubleOrNull() ?: return null
+        val tempValid = parseTempValid(dataMap["TEMP_VALID"], dataMap["TEMP_SOURCE"], temp)
+        val tempSource = dataMap["TEMP_SOURCE"]?.uppercase()?.takeIf { it.isNotBlank() }
+            ?: if (tempValid) "MEASURED_LEGACY" else "INVALID"
         val hr = dataMap["HR"]?.toIntOrNull() ?: return null
         val spo2 = dataMap["SPO2"]?.toIntOrNull()
         val env = dataMap["ENV"]?.toDoubleOrNull() ?: return null
@@ -49,13 +52,15 @@ object SensorDataParser {
         val posture = dataMap["POSTURE"]?.uppercase() ?: return null
 
         if (!isValidWorkerId(id)) return null
-        if (!isValidSensorRange(temp, hr, spo2, env, hum, lux)) return null
+        if (!isValidSensorRange(temp, tempValid, hr, spo2, env, hum, lux)) return null
         if (!isValidAxisRange(ax, ay, az)) return null
         if (!allowedPostures.contains(posture)) return null
 
         return SensorData(
             id = id,
             temp = temp,
+            tempValid = tempValid,
+            tempSource = tempSource,
             hr = hr,
             spo2 = spo2,
             env = env,
@@ -87,6 +92,7 @@ object SensorDataParser {
 
     private fun isValidSensorRange(
         temp: Double,
+        tempValid: Boolean,
         hr: Int,
         spo2: Int?,
         env: Double,
@@ -95,7 +101,7 @@ object SensorDataParser {
     ): Boolean {
         // 위험도 계산 전 센서값 범위 검증
         if (temp.isNaN() || env.isNaN()) return false
-        if (temp < 20.0 || temp > 50.0) return false
+        if (tempValid && (temp < -20.0 || temp > 80.0)) return false
         if (hr < 30 || hr > 220) return false
         if (spo2 != null && (spo2 < 50 || spo2 > 100)) return false
         if (env < -40.0 || env > 85.0) return false
@@ -108,6 +114,18 @@ object SensorDataParser {
     private fun isValidAxisRange(ax: Double?, ay: Double?, az: Double?): Boolean {
         return listOf(ax, ay, az).all { value ->
             value == null || (!value.isNaN() && value >= -80.0 && value <= 80.0)
+        }
+    }
+
+    private fun parseTempValid(value: String?, source: String?, temp: Double): Boolean {
+        return when (value?.trim()) {
+            "1" -> true
+            "0" -> false
+            else -> {
+                // 구형 payload 호환: TEMP_VALID가 없으면 정상 범위 숫자 TEMP를 실측값으로 봅니다.
+                val normalizedSource = source?.uppercase()
+                if (normalizedSource == "INVALID") false else temp in 20.0..50.0
+            }
         }
     }
 }

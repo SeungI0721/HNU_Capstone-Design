@@ -18,21 +18,39 @@ bool readMax30205(float& tempC) {
   return true;
 }
 
-String readSkinTemp() {
+struct SkinTempSample {
+  String value;
+  bool valid;
+  const char* source;
+};
+
+SkinTempSample readSkinTempSample() {
   if (!max30205Ready) {
-    return "";
+    Serial.println("[MAX30205] not detected, VALID=0");
+    return { "0.0", false, "INVALID" };
   }
 
   float tempC = NAN;
   if (!readMax30205(tempC)) {
-    static bool tempReadFailLogged = false;
-    if (!tempReadFailLogged) {
-      Serial.println("[SENSOR] MAX30205 READ FAILED - TEMP fallback enabled");
-      tempReadFailLogged = true;
-    }
-    return "";
+    Serial.println("[MAX30205] read failed, VALID=0");
+    return { "0.0", false, "INVALID" };
   }
-  return formatFloatOrEmpty(tempC, 25.0, 45.0, 1);
+
+  String formattedTemp = formatFloatOrEmpty(tempC, -20.0, 80.0, 1);
+  if (formattedTemp.length() == 0) {
+    Serial.println("[MAX30205] invalid numeric range, VALID=0");
+    return { "0.0", false, "INVALID" };
+  }
+
+  Serial.print("[MAX30205] TEMP=");
+  Serial.print(tempC, 2);
+  Serial.println(" C, VALID=1");
+  return { formattedTemp, true, "MEASURED" };
+}
+
+String readSkinTemp() {
+  SkinTempSample sample = readSkinTempSample();
+  return sample.valid ? sample.value : "";
 }
 
 String readEnvTemp() {
@@ -345,6 +363,10 @@ void initSensors() {
   Serial.println(max30102Ready ? "[SENSOR] MAX30102 OK" : "[SENSOR] MAX30102 NOT FOUND");
 
   max30205Ready = i2cDevicePresent(MAX30205_ADDR);
-  Serial.println(max30205Ready ? "[SENSOR] MAX30205 OK" : "[SENSOR] MAX30205 NOT FOUND - TEMP fallback enabled");
+  if (max30205Ready) {
+    Serial.println("[MAX30205] detected at 0x48");
+  } else {
+    Serial.println("[MAX30205] not detected at 0x48");
+  }
 }
 

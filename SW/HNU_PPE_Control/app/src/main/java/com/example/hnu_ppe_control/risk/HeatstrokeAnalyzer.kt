@@ -7,7 +7,6 @@ import kotlin.math.sqrt
 
 object HeatstrokeAnalyzer {
 
-    private const val DEFAULT_BASELINE_TEMP = 36.5
     private const val DEFAULT_BASELINE_HR = 80
     private const val MOTION_STOP_THRESHOLD_MS = 30_000L
 
@@ -17,28 +16,37 @@ object HeatstrokeAnalyzer {
     fun analyze(data: SensorData): RiskLevel {
         return analyze(
             data = data,
-            baselineTemp = DEFAULT_BASELINE_TEMP,
-            baselineHR = DEFAULT_BASELINE_HR
+            baselineTemp = null,
+            baselineHR = DEFAULT_BASELINE_HR,
+            tempBaselineReady = false,
+            stableDeltaTemp = null
         )
     }
 
     fun analyze(
         data: SensorData,
-        baselineTemp: Double,
-        baselineHR: Int
+        baselineTemp: Double?,
+        baselineHR: Int?,
+        tempBaselineReady: Boolean = false,
+        stableDeltaTemp: Double? = null,
+        motionAbnormal: Boolean = false,
+        isHighActivity: Boolean = false
     ): RiskLevel {
         if (!isValidSensorData(data)) {
             resetMotionState()
             return RiskLevel.ERROR
         }
 
-        val safeBaselineTemp = sanitizeBaselineTemp(baselineTemp)
         val safeBaselineHr = sanitizeBaselineHr(baselineHR)
         val motionResult = analyzeMotion(data.accX, data.accY, data.accZ)
-
-        val deltaTemp = data.temp - safeBaselineTemp
+        val effectiveMotionAbnormal = motionAbnormal || motionResult.motionAbnormal
+        val effectiveHighActivity = isHighActivity || motionResult.isHighActivity
         val deltaHR = data.hr - safeBaselineHr
-        val heatIndex = data.env + (0.05 * data.hum)
+        val environmentRiskIndicator = data.env + (0.05 * data.hum)
+        val canUseTempRisk = data.tempValid &&
+            tempBaselineReady &&
+            baselineTemp != null &&
+            stableDeltaTemp != null
 
         var riskIndex = 0
 
@@ -48,29 +56,26 @@ object HeatstrokeAnalyzer {
             deltaHR >= 20 -> 10
             else -> 0
         }
-
-        if (motionResult.isHighActivity) {
-            heartRateScore /= 2
-        }
+        if (effectiveHighActivity) heartRateScore /= 2
         riskIndex += heartRateScore
 
-        riskIndex += when {
-            deltaTemp >= 2.0 -> 40
-            deltaTemp >= 1.0 -> 25
-            deltaTemp >= 0.5 -> 10
-            else -> 0
+        if (canUseTempRisk) {
+            riskIndex += when {
+                stableDeltaTemp >= 2.0 -> 35
+                stableDeltaTemp >= 1.0 -> 25
+                stableDeltaTemp >= 0.5 -> 10
+                else -> 0
+            }
         }
 
         riskIndex += when {
-            heatIndex >= 38.0 -> 20
-            heatIndex >= 35.0 -> 10
-            heatIndex >= 33.0 -> 5
+            environmentRiskIndicator >= 38.0 -> 20
+            environmentRiskIndicator >= 35.0 -> 10
+            environmentRiskIndicator >= 33.0 -> 5
             else -> 0
         }
 
-        if (motionResult.motionAbnormal) {
-            riskIndex += 40
-        }
+        if (effectiveMotionAbnormal) riskIndex += 40
 
         riskIndex += when {
             data.lux >= 50000 -> 15
@@ -79,13 +84,16 @@ object HeatstrokeAnalyzer {
         }
 
         val spo2Emergency = data.spo2 != null && data.spo2 < 85
+        val postureEmergency = data.posture == "FALL" || data.posture == "EMERGENCY"
+        val tempEmergencyCandidate = canUseTempRisk &&
+            stableDeltaTemp >= 2.5 &&
+            (
+                environmentRiskIndicator >= 35.0 ||
+                    effectiveMotionAbnormal ||
+                    deltaHR >= 30
+            )
 
-        // 수정됨: 30초 무반응(motionAbnormal)을 독립적인 응급 조건으로 분리
-        if (
-            deltaTemp >= 2.5 ||
-            motionResult.motionAbnormal ||
-            spo2Emergency
-        ) {
+        if (postureEmergency || effectiveMotionAbnormal || spo2Emergency || tempEmergencyCandidate) {
             return RiskLevel.EMERGENCY
         }
 
@@ -99,7 +107,7 @@ object HeatstrokeAnalyzer {
 
     fun analyzeAsInt(
         data: SensorData,
-        baselineTemp: Double = DEFAULT_BASELINE_TEMP,
+        baselineTemp: Double? = null,
         baselineHR: Int = DEFAULT_BASELINE_HR
     ): Int {
         return when (
@@ -119,7 +127,7 @@ object HeatstrokeAnalyzer {
 
     fun analyzeCsvAsInt(
         csvData: String?,
-        baselineTemp: Double = DEFAULT_BASELINE_TEMP,
+        baselineTemp: Double? = null,
         baselineHR: Int = DEFAULT_BASELINE_HR
     ): Int {
         if (csvData.isNullOrBlank()) return 0
@@ -131,6 +139,8 @@ object HeatstrokeAnalyzer {
             val data = SensorData(
                 id = "0001",
                 temp = values[0].trim().toDouble(),
+                tempValid = true,
+                tempSource = "MEASURED_LEGACY",
                 hr = values[1].trim().toInt(),
                 env = values[2].trim().toDouble(),
                 hum = values[3].trim().toInt(),
@@ -155,22 +165,12 @@ object HeatstrokeAnalyzer {
     private fun analyzeMotion(accX: Double?, accY: Double?, accZ: Double?): MotionResult {
         if (accX == null || accY == null || accZ == null) {
             resetMotionState()
-            return MotionResult(
-                accelVector = null,
-                isStill = false,
-                isHighActivity = false,
-                motionAbnormal = false
-            )
+            return MotionResult(null, isStill = false, isHighActivity = false, motionAbnormal = false)
         }
 
         if (accX.isNaN() || accY.isNaN() || accZ.isNaN()) {
             resetMotionState()
-            return MotionResult(
-                accelVector = null,
-                isStill = false,
-                isHighActivity = false,
-                motionAbnormal = false
-            )
+            return MotionResult(null, isStill = false, isHighActivity = false, motionAbnormal = false)
         }
 
         val accelVector = sqrt(accX * accX + accY * accY + accZ * accZ)
@@ -185,9 +185,7 @@ object HeatstrokeAnalyzer {
                 isMotionStopped = true
             } else {
                 val duration = currentTime - motionStartTime
-                if (duration >= MOTION_STOP_THRESHOLD_MS) {
-                    motionAbnormal = true
-                }
+                if (duration >= MOTION_STOP_THRESHOLD_MS) motionAbnormal = true
             }
         } else {
             resetMotionState()
@@ -213,24 +211,23 @@ object HeatstrokeAnalyzer {
         val accZ = data.accZ
 
         if (data.temp.isNaN() || data.env.isNaN()) return false
+        if (data.tempValid && data.temp !in -20.0..80.0) return false
         if (accX != null && accX.isNaN()) return false
         if (accY != null && accY.isNaN()) return false
         if (accZ != null && accZ.isNaN()) return false
 
-        // 수정됨: 에러 값(30, 50)이 정상 통과되지 않도록 포함 범위(in) 수정
-        return data.temp in 20.0..50.0 &&
-                data.hr in 31..220 &&
-                data.env in -40.0..85.0 &&
-                data.hum in 0..100 &&
-                data.lux >= 0 &&
-                (spo2 == null || spo2 in 51..100)
+        return data.hr in 31..220 &&
+            data.env in -40.0..85.0 &&
+            data.hum in 0..100 &&
+            data.lux >= 0 &&
+            (spo2 == null || spo2 in 51..100)
     }
 
-    fun sanitizeBaselineTemp(value: Double?): Double {
+    fun sanitizeBaselineTemp(value: Double?): Double? {
         return when {
-            value == null -> DEFAULT_BASELINE_TEMP
-            value.isNaN() -> DEFAULT_BASELINE_TEMP
-            value !in 20.0..45.0 -> DEFAULT_BASELINE_TEMP
+            value == null -> null
+            value.isNaN() -> null
+            value !in -20.0..80.0 -> null
             else -> value
         }
     }

@@ -9,6 +9,7 @@ import com.example.hnu_ppe_control.R
 import com.example.hnu_ppe_control.data.BleSignalLevel
 import com.example.hnu_ppe_control.data.RiskLevel
 import com.example.hnu_ppe_control.data.SensorData
+import com.example.hnu_ppe_control.data.TempBaselineSnapshot
 import com.example.hnu_ppe_control.data.WorkSessionState
 
 class MainUiController(
@@ -129,10 +130,16 @@ class MainUiController(
         activity.runOnUiThread { txtReconnectState.text = message }
     }
 
-    fun showSensorData(sensorData: SensorData, riskLevel: RiskLevel, formattedTime: String) {
+    fun showSensorData(
+        sensorData: SensorData,
+        riskLevel: RiskLevel,
+        formattedTime: String,
+        tempSnapshot: TempBaselineSnapshot
+    ) {
         val axisText = "X:${sensorData.ax?.let { "%.2f".format(it) } ?: "-"} " +
             "Y:${sensorData.ay?.let { "%.2f".format(it) } ?: "-"} " +
             "Z:${sensorData.az?.let { "%.2f".format(it) } ?: "-"}"
+        val tempText = formatTempText(sensorData, tempSnapshot)
         val detailText = """
             workerId: ${sensorData.id}
             TEMP 피부온도: ${sensorData.temp}
@@ -144,10 +151,11 @@ class MainUiController(
             MPU X/Y/Z: $axisText
             POSTURE 자세: ${sensorData.posture}
             위험 단계: ${riskLevel.label}
-        """.trimIndent()
+        """.trimIndent() + "\nTEMP 피부 접촉 온도: $tempText\nTEMP 상태: ${sensorData.tempSource} / ${tempSnapshot.status}"
 
         activity.runOnUiThread {
             txtTempCard.text = "%.1f ℃".format(sensorData.temp)
+            txtTempCard.text = tempText
             txtHrCard.text = "${sensorData.hr} bpm"
             txtSpo2Card.text = sensorData.spo2?.let { "$it %" } ?: "-"
             txtEnvCard.text = "%.1f ℃ / %d %%".format(sensorData.env, sensorData.hum)
@@ -161,6 +169,16 @@ class MainUiController(
             txtRiskState.text = riskLevel.label
             txtRiskMessage.text = riskMessageFor(riskLevel)
             layoutRiskCard.setBackgroundResource(backgroundForRisk(riskLevel))
+        }
+    }
+
+    private fun formatTempText(sensorData: SensorData, tempSnapshot: TempBaselineSnapshot): String {
+        if (!sensorData.tempValid) return "측정 불가"
+        val stableDelta = tempSnapshot.stableDeltaTemp
+        return if (tempSnapshot.baselineTempReady && stableDelta != null) {
+            "%.1f ℃ / 기준 대비 %+.1f ℃".format(sensorData.temp, stableDelta)
+        } else {
+            "%.1f ℃ (기준값 측정 중)".format(sensorData.temp)
         }
     }
 

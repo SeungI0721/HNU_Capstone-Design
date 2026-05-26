@@ -1,32 +1,6 @@
 /* Smart Shield 출력 모듈: RED LED, 진동 모터, 부저 경고 동작 제어 */
 #pragma once
 
-/*
-  기존 RGB LED 모듈 코드 보관
-
-void setLedRaw(bool redOn, bool greenOn, bool blueOn) {
-  digitalWrite(LED_R_PIN, COMMON_ANODE_LED ? !redOn : redOn);
-  digitalWrite(LED_G_PIN, COMMON_ANODE_LED ? !greenOn : greenOn);
-  digitalWrite(LED_B_PIN, COMMON_ANODE_LED ? !blueOn : blueOn);
-}
-
-void setLedSafe() {
-  setLedRaw(false, true, false);
-}
-
-void setLedCaution() {
-  setLedRaw(true, true, false);
-}
-
-void setLedDanger() {
-  setLedRaw(true, false, false);
-}
-
-void setLedOff() {
-  setLedRaw(false, false, false);
-}
-*/
-
 const bool RED_LED_ACTIVE_HIGH = true;
 
 void setRedLed(bool on) {
@@ -204,14 +178,6 @@ void updateLedForRisk() {
 void initOutputs() {
   // 출력 핀 초기화
   pinMode(LED_R_PIN, OUTPUT);
-
-  /*
-    기존 RGB LED 모듈 핀 초기화 보관
-    요청에 따라 RED LED만 사용
-
-  pinMode(LED_G_PIN, OUTPUT);
-  pinMode(LED_B_PIN, OUTPUT);
-  */
 
   pinMode(VIBRATION_PIN, OUTPUT);
 

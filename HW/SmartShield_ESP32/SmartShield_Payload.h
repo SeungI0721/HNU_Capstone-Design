@@ -23,6 +23,8 @@ String buildFakePayload() {
   payload += WORKER_ID;
   payload += ",TEMP:";
   payload += String(skinTemp, 1);
+  payload += ",TEMP_VALID:1";
+  payload += ",TEMP_SOURCE:MEASURED";
   payload += ",HR:";
   payload += String(hr);
   payload += ",SPO2:";
@@ -54,7 +56,7 @@ String buildPayload() {
     return buildFakePayload();
   }
 
-  String temp = valueOrFallback(readSkinTemp(), FALLBACK_TEMP);
+  SkinTempSample skinTemp = readSkinTempSample();
   String hr = valueOrFallback(readHeartRateForApp(), FALLBACK_HR);
   String spo2 = readSpo2ForApp();
   String env = valueOrFallback(readEnvTemp(), FALLBACK_ENV);
@@ -74,7 +76,11 @@ String buildPayload() {
   payload += "ID:";
   payload += WORKER_ID;
   payload += ",TEMP:";
-  payload += temp;
+  payload += skinTemp.value;
+  payload += ",TEMP_VALID:";
+  payload += skinTemp.valid ? "1" : "0";
+  payload += ",TEMP_SOURCE:";
+  payload += skinTemp.source;
   payload += ",HR:";
   payload += hr;
   payload += ",SPO2:";

@@ -4,7 +4,7 @@
 
   BLE 이름: SS_0001
   Notify payload 형식:
-  ID:0001,TEMP:36.5,HR:102,SPO2:97,ENV:33.1,HUM:71,LUX:42000,POSTURE:NORMAL
+  ID:0001,TEMP:34.8,TEMP_VALID:1,TEMP_SOURCE:MEASURED,HR:102,SPO2:97,ENV:33.1,HUM:71,LUX:42000,POSTURE:NORMAL
 */
 
 #include <Arduino.h>
@@ -33,9 +33,6 @@ const uint8_t I2C_SDA_PIN = 21;
 const uint8_t I2C_SCL_PIN = 22;
 
 const uint8_t LED_R_PIN = 27;
-const uint8_t LED_G_PIN = 32;
-const uint8_t LED_B_PIN = 33;
-const bool COMMON_ANODE_LED = true;  // YwRobot 공통 애노드 LED 모듈은 보통 true를 사용합니다.
 
 const uint8_t VIBRATION_PIN = 23;    // 진동 모터는 MOSFET 또는 NPN 트랜지스터를 통해 구동합니다.
 const uint8_t BUZZER_PIN = 18;       // 패시브 부저는 트랜지스터를 통한 PWM 구동을 권장합니다.
@@ -47,7 +44,6 @@ const bool FAKE_DATA_TEST_MODE = false;
 const bool USE_APP_SAFE_FALLBACK_VALUES = true;  // 센서가 없어도 Android 파서가 깨지지 않도록 기본값을 사용합니다.
 const uint16_t BLE_MTU_SIZE = 128;
 
-const char* FALLBACK_TEMP = "36.5";
 const char* FALLBACK_HR = "82";
 const char* FALLBACK_SPO2 = "98";
 const char* FALLBACK_ENV = "28.5";

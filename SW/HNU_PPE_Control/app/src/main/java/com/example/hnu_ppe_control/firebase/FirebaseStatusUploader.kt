@@ -35,6 +35,13 @@ object FirebaseStatusUploader {
         workerId: String,
         deviceName: String,
         temp: Double,
+        tempValid: Boolean,
+        tempSource: String,
+        baselineTemp: Double?,
+        baselineTempReady: Boolean,
+        deltaTemp: Double?,
+        stableDeltaTemp: Double?,
+        tempBaselineStatus: String,
         hr: Int,
         spo2: Int?,
         env: Double,
@@ -87,7 +94,14 @@ object FirebaseStatusUploader {
             baselinePosture = baselinePosture
         )
 
-        data["temp"] = temp
+        data["temp"] = if (tempValid) temp else 0.0
+        data["tempValid"] = tempValid
+        data["tempSource"] = tempSource
+        data["baselineTempReady"] = baselineTempReady
+        data["tempBaselineStatus"] = tempBaselineStatus
+        baselineTemp?.let { data["baselineTemp"] = it }
+        deltaTemp?.let { data["deltaTemp"] = it }
+        stableDeltaTemp?.let { data["stableDeltaTemp"] = it }
         data["hr"] = hr
         data["env"] = env
         data["hum"] = hum
@@ -156,6 +170,13 @@ object FirebaseStatusUploader {
         riskLevel: String,
         riskCommand: String,
         temp: Double,
+        tempValid: Boolean,
+        tempSource: String,
+        baselineTemp: Double?,
+        baselineTempReady: Boolean,
+        deltaTemp: Double?,
+        stableDeltaTemp: Double?,
+        tempBaselineStatus: String,
         hr: Int,
         spo2: Int?,
         env: Double,
@@ -193,7 +214,12 @@ object FirebaseStatusUploader {
             "workerId" to workerId,
             "riskLevel" to riskLevel,
             "riskCommand" to riskCommand,
-            "temp" to temp,
+            "riskMessage" to message,
+            "temp" to if (tempValid) temp else 0.0,
+            "tempValid" to tempValid,
+            "tempSource" to tempSource,
+            "baselineTempReady" to baselineTempReady,
+            "tempBaselineStatus" to tempBaselineStatus,
             "hr" to hr,
             "env" to env,
             "hum" to hum,
@@ -205,6 +231,9 @@ object FirebaseStatusUploader {
         )
 
         spo2?.let { data["spo2"] = it }
+        baselineTemp?.let { data["baselineTemp"] = it }
+        deltaTemp?.let { data["deltaTemp"] = it }
+        stableDeltaTemp?.let { data["stableDeltaTemp"] = it }
         ax?.let { data["ax"] = it }
         ay?.let { data["ay"] = it }
         az?.let { data["az"] = it }

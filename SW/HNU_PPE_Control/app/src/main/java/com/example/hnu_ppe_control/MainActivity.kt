@@ -26,6 +26,7 @@ import com.example.hnu_ppe_control.ble.BlePermissionHelper
 import com.example.hnu_ppe_control.data.BleSignalLevel
 import com.example.hnu_ppe_control.data.RiskLevel
 import com.example.hnu_ppe_control.data.SensorData
+import com.example.hnu_ppe_control.data.TempBaselineSnapshot
 import com.example.hnu_ppe_control.data.WeatherSnapshot
 import com.example.hnu_ppe_control.data.WorkerDetailSnapshot
 import com.example.hnu_ppe_control.data.WorkerStatusStore
@@ -49,6 +50,11 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     companion object {
         private const val TAG = "SmartShieldBLE"
         private const val REQUEST_NOTIFICATION_PERMISSION = 2001
+        private const val TEMP_STABILIZATION_SECONDS = 30L
+        private const val TEMP_BASELINE_COLLECTION_SECONDS = 60L
+        private const val TEMP_MIN_VALID_SAMPLE_COUNT = 20
+        private const val TEMP_TREND_WINDOW_SECONDS = 10L
+        private const val TEMP_TREND_MIN_SAMPLE_COUNT = 5
     }
 
     private lateinit var bleManager: BleManager
@@ -72,6 +78,13 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     private var workEndedAtMillis: Long? = null
     private var baselinePosture: String? = null
     private var baselineTemp: Double? = null
+    private var baselineTempReady = false
+    private var baselineStartTimeMillis: Long? = null
+    private val baselineTempSamples = mutableListOf<Double>()
+    private val recentDeltaTempSamples = mutableListOf<Pair<Long, Double>>()
+    private var latestDeltaTemp: Double? = null
+    private var latestStableDeltaTemp: Double? = null
+    private var tempBaselineStatus = "SENSOR_ERROR"
     private var baselineHr: Int? = null
     private var bleSignalLevel = BleSignalLevel.NOT_CONNECTED
     private var bleRssi: Int? = null
@@ -246,7 +259,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         workStartedAtMillis = null
         workEndedAtMillis = null
         baselinePosture = null
-        baselineTemp = null
+        resetTempBaselineState()
         baselineHr = null
         appSessionActive = false
         fakeTestMode = false
@@ -282,6 +295,9 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         bleSignalLevel = BleSignalLevel.DISCONNECTED
         bleRssi = null
         uploadLastStatus(bleConnected = false, appSessionActive = false)
+        resetTempBaselineState()
+        baselineHr = null
+        baselinePosture = null
         ui.showBleState(currentBleState)
         ui.showBleSignal(bleSignalLevel)
         setWorkSessionState(WorkSessionState.ENDED)
@@ -292,6 +308,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         fakeTestMode = true
         appSessionActive = true
         if (workStartedAtMillis == null) workStartedAtMillis = System.currentTimeMillis()
+        if (baselineStartTimeMillis == null) resetTempBaselineState()
         workEndedAtMillis = null
         currentBleState = "연결 전"
         bleSignalLevel = BleSignalLevel.NOT_CONNECTED
@@ -356,6 +373,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
     override fun onConnected(deviceName: String, address: String) {
         appSessionActive = true
         if (workStartedAtMillis == null) workStartedAtMillis = System.currentTimeMillis()
+        if (baselineStartTimeMillis == null) baselineStartTimeMillis = workStartedAtMillis
         workEndedAtMillis = null
         foregroundServiceController.startIfAllowed()
 
@@ -441,10 +459,14 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             return
         }
 
+        Log.d(TAG, "[TEMP] raw=${sensorData.temp} valid=${sensorData.tempValid} source=${sensorData.tempSource}")
+        val tempSnapshot = updateTempBaseline(sensorData)
         val riskLevel = HeatstrokeAnalyzer.analyze(
             data = sensorData,
             baselineTemp = HeatstrokeAnalyzer.sanitizeBaselineTemp(baselineTemp),
-            baselineHR = HeatstrokeAnalyzer.sanitizeBaselineHr(baselineHr)
+            baselineHR = HeatstrokeAnalyzer.sanitizeBaselineHr(baselineHr),
+            tempBaselineReady = tempSnapshot.baselineTempReady,
+            stableDeltaTemp = tempSnapshot.stableDeltaTemp
         )
         val command = RiskCommandMapper.toCommand(riskLevel)
         lastUpdatedAt = formatNow()
@@ -455,30 +477,138 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
 
         // 작업 시작 직후 정상 자세 기준값 저장
         if (baselinePosture == null) baselinePosture = sensorData.posture
-        if (baselineTemp == null && sensorData.posture.equals("NORMAL", ignoreCase = true)) {
-            baselineTemp = sensorData.temp
-        }
         if (baselineHr == null && sensorData.posture.equals("NORMAL", ignoreCase = true)) {
             baselineHr = sensorData.hr
         }
 
-        ui.showSensorData(sensorData, riskLevel, lastUpdatedAt)
+        ui.showSensorData(sensorData, riskLevel, lastUpdatedAt, tempSnapshot)
         ui.showRisk(riskLevel)
         ui.showRiskCommand(command)
         updateWorkerDetailSnapshot()
 
         bleManager.writeRiskCommand(command)
-        uploadCurrentStatus(sensorData, riskLevel, command)
-        uploadRiskLogIfNeeded(sensorData, riskLevel, command)
+        uploadCurrentStatus(sensorData, riskLevel, command, tempSnapshot)
+        uploadRiskLogIfNeeded(sensorData, riskLevel, command, tempSnapshot)
         alertManager.handleRisk(riskLevel)
     }
 
-    private fun uploadCurrentStatus(sensorData: SensorData, riskLevel: RiskLevel, command: String) {
+    private fun updateTempBaseline(sensorData: SensorData): TempBaselineSnapshot {
+        val sessionStart = workStartedAtMillis ?: System.currentTimeMillis().also {
+            workStartedAtMillis = it
+        }
+        if (baselineStartTimeMillis == null) baselineStartTimeMillis = sessionStart
+
+        if (!sensorData.tempValid) {
+            tempBaselineStatus = "SENSOR_ERROR"
+            latestDeltaTemp = null
+            latestStableDeltaTemp = null
+            recentDeltaTempSamples.clear()
+            Log.d(TAG, "[TEMP_ERROR] sensor invalid, excluded from risk calculation")
+            return currentTempSnapshot()
+        }
+
+        val elapsedMillis = System.currentTimeMillis() - (baselineStartTimeMillis ?: sessionStart)
+        val stabilizationMillis = TEMP_STABILIZATION_SECONDS * 1000L
+        val collectionMillis = TEMP_BASELINE_COLLECTION_SECONDS * 1000L
+
+        if (!baselineTempReady) {
+            if (elapsedMillis < stabilizationMillis) {
+                tempBaselineStatus = "STABILIZING"
+                Log.d(TAG, "[TEMP_BASELINE] status=STABILIZING")
+                return currentTempSnapshot()
+            }
+
+            tempBaselineStatus = "COLLECTING"
+            if (sensorData.posture.equals("NORMAL", ignoreCase = true)) {
+                baselineTempSamples.add(sensorData.temp)
+            }
+            Log.d(TAG, "[TEMP_BASELINE] collecting count=${baselineTempSamples.size}")
+
+            val collectionElapsed = elapsedMillis - stabilizationMillis
+            if (
+                collectionElapsed >= collectionMillis &&
+                baselineTempSamples.size >= TEMP_MIN_VALID_SAMPLE_COUNT
+            ) {
+                baselineTemp = median(baselineTempSamples)
+                baselineTempReady = true
+                tempBaselineStatus = "READY"
+                Log.d(TAG, "[TEMP_BASELINE] ready baseline=${baselineTemp}")
+            }
+            return currentTempSnapshot()
+        }
+
+        tempBaselineStatus = "READY"
+        val baseline = baselineTemp
+        if (baseline != null) {
+            latestDeltaTemp = sensorData.temp - baseline
+            updateStableDeltaTemp(latestDeltaTemp ?: 0.0)
+            Log.d(TAG, "[TEMP_TREND] delta=${latestDeltaTemp} stableDelta=${latestStableDeltaTemp}")
+        }
+        return currentTempSnapshot()
+    }
+
+    private fun updateStableDeltaTemp(deltaTemp: Double) {
+        val now = System.currentTimeMillis()
+        recentDeltaTempSamples.add(now to deltaTemp)
+        val cutoff = now - (TEMP_TREND_WINDOW_SECONDS * 1000L)
+        recentDeltaTempSamples.removeAll { it.first < cutoff }
+        latestStableDeltaTemp = if (recentDeltaTempSamples.size >= TEMP_TREND_MIN_SAMPLE_COUNT) {
+            median(recentDeltaTempSamples.map { it.second })
+        } else {
+            null
+        }
+    }
+
+    private fun currentTempSnapshot(): TempBaselineSnapshot {
+        return TempBaselineSnapshot(
+            baselineTemp = baselineTemp,
+            baselineTempReady = baselineTempReady,
+            deltaTemp = latestDeltaTemp,
+            stableDeltaTemp = latestStableDeltaTemp,
+            status = tempBaselineStatus
+        )
+    }
+
+    private fun resetTempBaselineState() {
+        baselineTemp = null
+        baselineTempReady = false
+        baselineStartTimeMillis = System.currentTimeMillis()
+        baselineTempSamples.clear()
+        recentDeltaTempSamples.clear()
+        latestDeltaTemp = null
+        latestStableDeltaTemp = null
+        tempBaselineStatus = "STABILIZING"
+    }
+
+    private fun median(values: List<Double>): Double? {
+        if (values.isEmpty()) return null
+        val sorted = values.sorted()
+        val middle = sorted.size / 2
+        return if (sorted.size % 2 == 0) {
+            (sorted[middle - 1] + sorted[middle]) / 2.0
+        } else {
+            sorted[middle]
+        }
+    }
+
+    private fun uploadCurrentStatus(
+        sensorData: SensorData,
+        riskLevel: RiskLevel,
+        command: String,
+        tempSnapshot: TempBaselineSnapshot
+    ) {
         ui.showFirebaseState("currentStatus 업로드 중")
         FirebaseStatusUploader.uploadCurrentStatus(
             workerId = sensorData.id,
             deviceName = bleManager.connectedDeviceName,
             temp = sensorData.temp,
+            tempValid = sensorData.tempValid,
+            tempSource = sensorData.tempSource,
+            baselineTemp = tempSnapshot.baselineTemp,
+            baselineTempReady = tempSnapshot.baselineTempReady,
+            deltaTemp = tempSnapshot.deltaTemp,
+            stableDeltaTemp = tempSnapshot.stableDeltaTemp,
+            tempBaselineStatus = tempSnapshot.status,
             hr = sensorData.hr,
             spo2 = sensorData.spo2,
             env = sensorData.env,
@@ -508,13 +638,25 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         )
     }
 
-    private fun uploadRiskLogIfNeeded(sensorData: SensorData, riskLevel: RiskLevel, command: String) {
+    private fun uploadRiskLogIfNeeded(
+        sensorData: SensorData,
+        riskLevel: RiskLevel,
+        command: String,
+        tempSnapshot: TempBaselineSnapshot
+    ) {
         if (!riskLogPolicy.shouldUpload(riskLevel)) return
         FirebaseStatusUploader.uploadRiskLog(
             workerId = sensorData.id,
             riskLevel = riskLevel.label,
             riskCommand = command,
             temp = sensorData.temp,
+            tempValid = sensorData.tempValid,
+            tempSource = sensorData.tempSource,
+            baselineTemp = tempSnapshot.baselineTemp,
+            baselineTempReady = tempSnapshot.baselineTempReady,
+            deltaTemp = tempSnapshot.deltaTemp,
+            stableDeltaTemp = tempSnapshot.stableDeltaTemp,
+            tempBaselineStatus = tempSnapshot.status,
             hr = sensorData.hr,
             spo2 = sensorData.spo2,
             env = sensorData.env,
@@ -544,6 +686,13 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
                 workerId = sensorData.id,
                 deviceName = bleManager.connectedDeviceName,
                 temp = sensorData.temp,
+                tempValid = sensorData.tempValid,
+                tempSource = sensorData.tempSource,
+                baselineTemp = baselineTemp,
+                baselineTempReady = baselineTempReady,
+                deltaTemp = latestDeltaTemp,
+                stableDeltaTemp = latestStableDeltaTemp,
+                tempBaselineStatus = tempBaselineStatus,
                 hr = sensorData.hr,
                 spo2 = sensorData.spo2,
                 env = sensorData.env,
@@ -628,7 +777,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
             bleSignalLevel = bleSignalLevel.label,
             bleRssi = bleRssi?.toString() ?: "-",
             riskLevel = lastRiskLevel.label,
-            temp = sensorData?.temp?.let { "%.1f ℃".format(it) } ?: "-",
+            temp = sensorData?.let { formatTempForDetail(it) } ?: "-",
             hr = sensorData?.hr?.let { "$it bpm" } ?: "-",
             spo2 = sensorData?.spo2?.let { "$it %" } ?: "-",
             env = sensorData?.env?.let { "%.1f ℃".format(it) } ?: "-",
@@ -649,6 +798,16 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         val ay = sensorData.ay?.let { "%.2f".format(it) } ?: "-"
         val az = sensorData.az?.let { "%.2f".format(it) } ?: "-"
         return "X:$ax, Y:$ay, Z:$az"
+    }
+
+    private fun formatTempForDetail(sensorData: SensorData): String {
+        if (!sensorData.tempValid) return "측정 불가"
+        val stableDelta = latestStableDeltaTemp
+        return if (baselineTempReady && stableDelta != null) {
+            "%.1f ℃ / 기준 대비 %+.1f ℃".format(sensorData.temp, stableDelta)
+        } else {
+            "%.1f ℃ (기준값 측정 중)".format(sensorData.temp)
+        }
     }
 
     private fun setWorkSessionState(state: WorkSessionState) {

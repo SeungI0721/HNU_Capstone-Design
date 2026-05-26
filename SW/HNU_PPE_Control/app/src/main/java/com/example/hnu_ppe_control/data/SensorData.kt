@@ -5,6 +5,8 @@ package com.example.hnu_ppe_control.data
 data class SensorData(
     val id: String,
     val temp: Double,
+    val tempValid: Boolean = false,
+    val tempSource: String = "INVALID",
     val hr: Int,
     val spo2: Int?,
     val env: Double,
