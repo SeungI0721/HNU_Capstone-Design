@@ -29,27 +29,27 @@ object HeatstrokeAnalyzer {
         val svm = sqrt(ax * ax + ay * ay + az * az)
         val isCurrentlyStatic = abs(svm - 9.8) < 1.5
 
-        // 2. 무반응 시간에 비례한 점진적 가중치
-        var immobilityScore = 0
-        var isUnresponsive = false
+        // 2. 무반응 시간에 비례한 점진적 가중치 (시연용 완벽 버전)
+var immobilityScore = 0
+var isUnresponsive = false
 
-        if (isCurrentlyStatic) {
-            if (motionStartTime == 0L) motionStartTime = currentTimeMillis
-            val staticDuration = (currentTimeMillis - motionStartTime) / 1000
+if (isCurrentlyStatic) {
+    if (motionStartTime == 0L) motionStartTime = currentTimeMillis
+    val staticDuration = (currentTimeMillis - motionStartTime) / 1000
 
-            when {
-                staticDuration >= 30 -> {
-                    immobilityScore = 40
-                    isUnresponsive = true // 30초 무반응 확정
-                }
-                staticDuration >= 20 -> immobilityScore = 20
-                staticDuration >= 10 -> immobilityScore = 10
-            }
-        } else {
-            // 움직임 감지 시 즉시 타이머 리셋
-            motionStartTime = 0L
+    when {
+        staticDuration >= 30 -> {         
+            immobilityScore = 100         
+            isUnresponsive = true 
         }
-        riskIndex += immobilityScore
+        staticDuration >= 20 -> immobilityScore = 20
+        staticDuration >= 10 -> immobilityScore = 10
+    }
+} else {
+    // 움직임 감지 시 즉시 타이머 리셋
+    motionStartTime = 0L
+}
+riskIndex += immobilityScore
 
         // 3. 심박수 노동 보정
         val currentHr = data.hr ?: 0
