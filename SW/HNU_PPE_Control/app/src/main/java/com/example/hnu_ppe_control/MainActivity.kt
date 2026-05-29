@@ -463,10 +463,7 @@ class MainActivity : AppCompatActivity(), BleManager.Listener {
         val tempSnapshot = updateTempBaseline(sensorData)
         val riskLevel = HeatstrokeAnalyzer.analyze(
             data = sensorData,
-            baselineTemp = HeatstrokeAnalyzer.sanitizeBaselineTemp(baselineTemp),
-            baselineHR = HeatstrokeAnalyzer.sanitizeBaselineHr(baselineHr),
-            tempBaselineReady = tempSnapshot.baselineTempReady,
-            stableDeltaTemp = tempSnapshot.stableDeltaTemp
+            baselineHR = baselineHr?.takeIf { it in 30..220 }
         )
         val command = RiskCommandMapper.toCommand(riskLevel)
         lastUpdatedAt = formatNow()

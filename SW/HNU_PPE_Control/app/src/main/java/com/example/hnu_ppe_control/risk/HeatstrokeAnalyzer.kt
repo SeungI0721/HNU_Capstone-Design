@@ -12,27 +12,12 @@ object HeatstrokeAnalyzer {
     private var spo2LowStartTime: Long = 0L
     private val hrHistory = ArrayDeque<Int>()
 
-    // MainActivity 호환용 함수 유지
-    fun sanitizeBaselineTemp(value: Double?): Double? {
-        return value?.takeIf { it in 20.0..50.0 }
-    }
-
-    // MainActivity 호환용 함수 유지
-    fun sanitizeBaselineHr(value: Int?): Int? {
-        return value?.takeIf { it in 30..220 }
-    }
-
     /**
      * 다중 센서 데이터를 융합한 위험도 산출
      */
     fun analyze(
         data: SensorData,
-        baselineTemp: Double?, // 시그니처 유지를 위해 남겨둠 (실제 연산은 data.temp 직접 사용)
-        baselineHR: Int?,
-        tempBaselineReady: Boolean,
-        stableDeltaTemp: Double? = null,
-        motionAbnormal: Boolean = false,
-        isHighActivity: Boolean = false
+        baselineHR: Int?
     ): RiskLevel {
         var riskIndex = 0
         val currentTimeMillis = System.currentTimeMillis()
