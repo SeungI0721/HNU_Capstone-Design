@@ -8,125 +8,124 @@ import kotlin.math.sqrt
 object HeatstrokeAnalyzer {
 
     private const val HR_HISTORY_SIZE = 5
-    private const val MOTION_STATIC_TIMEOUT_MS = 30_000L
-    private const val GRAVITY = 9.8
-
     private var motionStartTime: Long = 0L
+    private var spo2LowStartTime: Long = 0L
     private val hrHistory = ArrayDeque<Int>()
-    private var spo2LowCount = 0
 
-    // MainActivity에서 전달하는 기준값이 센서 범위를 벗어나면 위험도 계산에서 제외합니다.
+    // MainActivity 호환용 함수 유지
     fun sanitizeBaselineTemp(value: Double?): Double? {
         return value?.takeIf { it in 20.0..50.0 }
     }
 
-    // 작업 시작 직후 저장한 심박 기준값이 비정상 범위이면 심박 변화량 계산에서 제외합니다.
+    // MainActivity 호환용 함수 유지
     fun sanitizeBaselineHr(value: Int?): Int? {
         return value?.takeIf { it in 30..220 }
     }
 
+    /**
+     * 다중 센서 데이터를 융합한 위험도 산출
+     */
     fun analyze(
         data: SensorData,
-        baselineTemp: Double?,
+        baselineTemp: Double?, // 시그니처 유지를 위해 남겨둠 (실제 연산은 data.temp 직접 사용)
         baselineHR: Int?,
         tempBaselineReady: Boolean,
-        stableDeltaTemp: Double?,
+        stableDeltaTemp: Double? = null,
         motionAbnormal: Boolean = false,
         isHighActivity: Boolean = false
     ): RiskLevel {
-        val posture = data.posture.uppercase()
-        if (posture == "FALL" || posture == "EMERGENCY") {
-            return RiskLevel.EMERGENCY
-        }
+        var riskIndex = 0
+        val currentTimeMillis = System.currentTimeMillis()
 
-        val motionState = analyzeMotion(data)
-        val abnormalMotion = motionAbnormal || motionState.motionAbnormal || posture == "UNSTABLE"
-        val highActivity = isHighActivity || motionState.highActivity
-        val averagedHr = averageHeartRate(data.hr)
-        val deltaHr = baselineHR?.let { averagedHr - it }
-        val environmentRiskIndicator = data.env + (data.hum * 0.1)
+        // 1. 가속도(SVM) 정지 상태 확인 (오직 움직임 강도만 측정)
+        val ax = data.ax ?: 0.0
+        val ay = data.ay ?: 0.0
+        val az = data.az ?: 0.0
+        val svm = sqrt(ax * ax + ay * ay + az * az)
+        val isCurrentlyStatic = abs(svm - 9.8) < 1.5
 
-        updateSpo2State(data.spo2)
+        // 2. 무반응 시간에 비례한 점진적 가중치
+        var immobilityScore = 0
+        var isUnresponsive = false
 
-        var riskScore = 0
-        riskScore += heartRateScore(deltaHr, highActivity)
-        riskScore += temperatureScore(
-            data = data,
-            baselineTemp = baselineTemp,
-            tempBaselineReady = tempBaselineReady,
-            stableDeltaTemp = stableDeltaTemp
-        )
-        riskScore += environmentScore(environmentRiskIndicator)
-        riskScore += postureScore(posture, abnormalMotion)
-        riskScore += sunlightScore(data.lux)
-        riskScore += spo2Score(abnormalMotion)
+        if (isCurrentlyStatic) {
+            if (motionStartTime == 0L) motionStartTime = currentTimeMillis
+            val staticDuration = (currentTimeMillis - motionStartTime) / 1000
 
-        if (isTemperatureEmergencyCandidate(
-                data = data,
-                baselineTemp = baselineTemp,
-                tempBaselineReady = tempBaselineReady,
-                stableDeltaTemp = stableDeltaTemp,
-                environmentRiskIndicator = environmentRiskIndicator,
-                abnormalMotion = abnormalMotion,
-                deltaHr = deltaHr
-            )
-        ) {
-            return RiskLevel.EMERGENCY
-        }
-
-        if (spo2LowCount >= 5 && abnormalMotion) {
-            return RiskLevel.EMERGENCY
-        }
-
-        return when {
-            riskScore >= 70 -> RiskLevel.EMERGENCY
-            riskScore >= 50 -> RiskLevel.DANGER
-            riskScore >= 25 -> RiskLevel.CAUTION
-            else -> RiskLevel.SAFE
-        }
-    }
-
-    // 예전 테스트 코드가 정수 위험도를 호출할 수 있어 호환용으로 유지합니다.
-    fun calculateDangerLevel(bleData: String?, baselineTemp: Double, baselineHR: Int): Int {
-        if (bleData.isNullOrBlank()) return 0
-
-        return try {
-            val values = bleData.split(",")
-            if (values.size != 9) return 0
-
-            val data = SensorData(
-                id = "0000",
-                temp = values[0].toDouble(),
-                tempValid = true,
-                tempSource = "LEGACY",
-                hr = values[1].toInt(),
-                env = values[2].toDouble(),
-                hum = values[3].toInt(),
-                ax = values[4].toDouble(),
-                ay = values[5].toDouble(),
-                az = values[6].toDouble(),
-                spo2 = values[7].toInt(),
-                lux = values[8].toInt(),
-                posture = "NORMAL"
-            )
-
-            when (
-                analyze(
-                    data = data,
-                    baselineTemp = baselineTemp,
-                    baselineHR = baselineHR,
-                    tempBaselineReady = true,
-                    stableDeltaTemp = data.temp - baselineTemp
-                )
-            ) {
-                RiskLevel.SAFE -> 0
-                RiskLevel.CAUTION -> 1
-                RiskLevel.DANGER -> 2
-                RiskLevel.EMERGENCY -> 3
-                RiskLevel.ERROR -> 0
+            when {
+                staticDuration >= 30 -> {
+                    immobilityScore = 40
+                    isUnresponsive = true // 30초 무반응 확정
+                }
+                staticDuration >= 20 -> immobilityScore = 20
+                staticDuration >= 10 -> immobilityScore = 10
             }
-        } catch (_: Exception) {
-            0
+        } else {
+            // 움직임 감지 시 즉시 타이머 리셋
+            motionStartTime = 0L
+        }
+        riskIndex += immobilityScore
+
+        // 3. 심박수 노동 보정
+        val currentHr = data.hr ?: 0
+        val avgHeartRate = averageHeartRate(currentHr)
+        val deltaHr = if (baselineHR != null) avgHeartRate - baselineHR else 0
+        
+        var tempHrScore = 0
+        if (deltaHr >= 50) tempHrScore = 40
+        else if (deltaHr >= 30) tempHrScore = 25
+        else if (deltaHr >= 20) tempHrScore = 10
+
+        // 격렬한 움직임(노동 중)이면 심박수 위험도 절반 삭감
+        val highActivity = svm > 15.0
+        if (!isCurrentlyStatic && highActivity) {
+            tempHrScore /= 2
+        }
+        riskIndex += tempHrScore
+
+        // 4-1. 온습도 기반 체감온도(Heat Index) 점수
+        val heatIndex = (data.env ?: 0.0) + ((data.hum ?: 0).toDouble() * 0.1)
+        var heatScore = 0
+        if (heatIndex >= 38.0) heatScore = 20
+        else if (heatIndex >= 35.0) heatScore = 10
+        else if (heatIndex >= 33.0) heatScore = 5
+        riskIndex += heatScore
+
+        // 4-2. 조도(Lux) 기반 직사광선 노출 점수
+        var luxScore = 0
+        val currentLux = data.lux ?: 0
+        if (currentLux >= 50000) luxScore = 15 // 한여름 직사광선 수준
+        else if (currentLux >= 30000) luxScore = 5
+        riskIndex += luxScore
+
+        // 4-3. 체온(MAX30205) Sanity Check 필터 (기존 deltaTemp 대신 절대 체온 검사로 변경)
+        var bodyTempScore = 0
+        val currentTemp = data.temp ?: 0.0
+        if (currentTemp in 35.0..42.0) {
+            if (currentTemp >= 39.0) bodyTempScore = 30
+            else if (currentTemp >= 38.0) bodyTempScore = 15
+        }
+        riskIndex += bodyTempScore
+
+        // 5. 최상위 응급(EMERGENCY) 바이패스 판정
+        val currentSpo2 = data.spo2 ?: 0
+        if (currentSpo2 in 1..84) {
+            if (spo2LowStartTime == 0L) spo2LowStartTime = currentTimeMillis
+        } else {
+            spo2LowStartTime = 0L // 정상 범위면 리셋
+        }
+        val isSpo2Danger = (spo2LowStartTime != 0L) && ((currentTimeMillis - spo2LowStartTime) >= 5000)
+
+        // 응급 조건: 자세 무관하게 30초 무반응 + 산소포화도 5초 지속 저하
+        if (isUnresponsive && isSpo2Danger) {
+            return RiskLevel.EMERGENCY
+        }
+
+        // 6. 최종 위험도 판정 리턴
+        return when {
+            riskIndex >= 60 -> RiskLevel.DANGER
+            riskIndex >= 30 -> RiskLevel.CAUTION
+            else -> RiskLevel.SAFE
         }
     }
 
@@ -138,133 +137,9 @@ object HeatstrokeAnalyzer {
         return hrHistory.average().toInt()
     }
 
-    private fun updateSpo2State(spo2: Int?) {
-        if (spo2 != null && spo2 in 50..84) {
-            spo2LowCount++
-        } else {
-            spo2LowCount = 0
-        }
+    // 블루투스 재연결 시 초기화용
+    fun resetTimers() {
+        motionStartTime = 0L
+        spo2LowStartTime = 0L
     }
-
-    private fun heartRateScore(deltaHr: Int?, highActivity: Boolean): Int {
-        if (deltaHr == null) return 0
-
-        val score = when {
-            deltaHr >= 50 -> 40
-            deltaHr >= 30 -> 25
-            deltaHr >= 20 -> 10
-            else -> 0
-        }
-
-        // 활동량이 큰 순간에는 심박 상승을 일부 완화해 오탐을 줄입니다.
-        return if (highActivity) score / 2 else score
-    }
-
-    private fun temperatureScore(
-        data: SensorData,
-        baselineTemp: Double?,
-        tempBaselineReady: Boolean,
-        stableDeltaTemp: Double?
-    ): Int {
-        if (!canUseTemperatureRisk(data, baselineTemp, tempBaselineReady, stableDeltaTemp)) {
-            return 0
-        }
-
-        return when {
-            stableDeltaTemp!! >= 2.0 -> 35
-            stableDeltaTemp >= 1.0 -> 25
-            stableDeltaTemp >= 0.5 -> 10
-            else -> 0
-        }
-    }
-
-    private fun environmentScore(environmentRiskIndicator: Double): Int {
-        return when {
-            environmentRiskIndicator >= 38.0 -> 20
-            environmentRiskIndicator >= 35.0 -> 10
-            environmentRiskIndicator >= 33.0 -> 5
-            else -> 0
-        }
-    }
-
-    private fun postureScore(posture: String, abnormalMotion: Boolean): Int {
-        return when {
-            abnormalMotion -> 35
-            posture == "WARNING" -> 10
-            else -> 0
-        }
-    }
-
-    private fun sunlightScore(lux: Int): Int {
-        return when {
-            lux >= 50_000 -> 15
-            lux >= 30_000 -> 5
-            else -> 0
-        }
-    }
-
-    private fun spo2Score(abnormalMotion: Boolean): Int {
-        return if (spo2LowCount >= 3 && abnormalMotion) 15 else 0
-    }
-
-    private fun canUseTemperatureRisk(
-        data: SensorData,
-        baselineTemp: Double?,
-        tempBaselineReady: Boolean,
-        stableDeltaTemp: Double?
-    ): Boolean {
-        return data.tempValid &&
-            baselineTemp != null &&
-            tempBaselineReady &&
-            stableDeltaTemp != null
-    }
-
-    private fun isTemperatureEmergencyCandidate(
-        data: SensorData,
-        baselineTemp: Double?,
-        tempBaselineReady: Boolean,
-        stableDeltaTemp: Double?,
-        environmentRiskIndicator: Double,
-        abnormalMotion: Boolean,
-        deltaHr: Int?
-    ): Boolean {
-        if (!canUseTemperatureRisk(data, baselineTemp, tempBaselineReady, stableDeltaTemp)) {
-            return false
-        }
-
-        val hasCombinedRisk = environmentRiskIndicator >= 35.0 ||
-            abnormalMotion ||
-            (deltaHr != null && deltaHr >= 30)
-
-        return stableDeltaTemp!! >= 2.5 && hasCombinedRisk
-    }
-
-    private fun analyzeMotion(data: SensorData): MotionState {
-        val ax = data.ax ?: return MotionState()
-        val ay = data.ay ?: return MotionState()
-        val az = data.az ?: return MotionState()
-        val svm = sqrt(ax * ax + ay * ay + az * az)
-        val staticPosture = abs(svm - GRAVITY) < 1.5
-        val highActivity = svm > 15.0
-
-        if (!staticPosture) {
-            motionStartTime = 0L
-            return MotionState(motionAbnormal = false, highActivity = highActivity)
-        }
-
-        if (motionStartTime == 0L) {
-            motionStartTime = System.currentTimeMillis()
-            return MotionState(highActivity = highActivity)
-        }
-
-        val motionAbnormal = System.currentTimeMillis() - motionStartTime > MOTION_STATIC_TIMEOUT_MS &&
-            abs(ay) < 5.0
-
-        return MotionState(motionAbnormal = motionAbnormal, highActivity = highActivity)
-    }
-
-    private data class MotionState(
-        val motionAbnormal: Boolean = false,
-        val highActivity: Boolean = false
-    )
 }
