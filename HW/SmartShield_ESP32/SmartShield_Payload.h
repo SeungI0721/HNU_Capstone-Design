@@ -51,7 +51,7 @@ String buildFakePayload() {
 }
 
 String buildPayload() {
-  // 센서값을 읽고 누락값은 앱이 처리 가능한 안전 기본값으로 보완합니다.
+  // 센서값을 읽어 앱 payload를 만듭니다. 피부 온도는 유효성 플래그로 구분하고, 나머지 누락값은 기본값으로 보완합니다.
   if (FAKE_DATA_TEST_MODE) {
     return buildFakePayload();
   }

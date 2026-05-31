@@ -1,393 +1,236 @@
 
 # Smart Shield Final Checklist
 
-## 1. 문서 목적
+## 1. 발표 전 핵심 확인
 
-이 문서는 Smart Shield 프로젝트를 최종 제출하거나 발표하기 전 확인해야 할 항목을 정리한다.
+| 항목 | 상태 확인 |
+|---|---|
+| ESP32 전원 인가 | 부팅 로그 확인 |
+| I2C 센서 초기화 | BME280, BH1750, MPU6050, MAX30102, MAX30205 상태 확인 |
+| BLE 광고 | `SS_0001` 광고 확인 |
+| 작업자 앱 연결 | BLE 연결 성공 확인 |
+| Notify 수신 | 작업자 앱에서 payload 수신 확인 |
+| Write 전송 | 위험도 명령이 ESP32로 전송되는지 확인 |
+| 출력장치 | RED LED, 진동모터, 부저 동작 확인 |
+| Firebase 업로드 | `currentStatus`, `riskLogs` 갱신 확인 |
+| 관리자 앱 | Firebase 기반 작업자 상태 표시 확인 |
 
-확인 범위는 다음과 같다.
+---
+
+## 2. 최종 시스템 흐름 확인
+
+최종 시연 흐름은 다음 순서로 확인한다.
 
 ```text
-README 문서
-폴더 구조
-ESP32 펌웨어
-Android 작업자 앱
-Android 관리자 앱
-BLE 통신
-Firebase 구조
-센서 데이터
-위험도 알고리즘
-최종 테스트
-Git / 제출 파일 정리
+ESP32 센서값 수집
+→ BLE Notify
+→ Android 작업자 앱 수신
+→ payload 파싱
+→ 위험도 계산
+→ BLE Write 명령 전송
+→ ESP32 RED LED / 진동모터 / 부저 제어
+→ Firebase currentStatus / riskLogs 업로드
+→ 관리자 앱에서 작업자 상태 확인
 ````
 
 ---
 
-## 2. 문서 확인
+## 3. BLE 설정 확인
 
-| 항목                                                            | 확인          |
-| ------------------------------------------------------------- | ----------- |
-| 최상위 `README.md`가 프로젝트 전체 구조를 설명하는가?                           | PASS / FAIL |
-| `HW/README.md`가 하드웨어 구성과 테스트 순서를 설명하는가?                       | PASS / FAIL |
-| `HW/SmartShield_ESP32/README.md`가 펌웨어, BLE, 센서, 명령 구조를 설명하는가? | PASS / FAIL |
-| `SW/README.md`가 작업자 앱과 관리자 앱 역할을 구분하는가?                       | PASS / FAIL |
-| `SW/HNU_PPE_Control/README.md`가 작업자 앱 기능을 설명하는가?              | PASS / FAIL |
-| `SW/HNU_PPE_Manager/README.md`가 관리자 앱 기능을 설명하는가?              | PASS / FAIL |
-| `docs/BLE_PROTOCOL.md`가 BLE 규격을 설명하는가?                        | PASS / FAIL |
-| `docs/FIREBASE_SCHEMA.md`가 Firebase 구조를 설명하는가?                | PASS / FAIL |
-| `docs/RISK_ALGORITHM.md`가 위험도 판단 기준을 설명하는가?                   | PASS / FAIL |
-| `docs/TEST_PLAN.md`가 검증 계획을 설명하는가?                            | PASS / FAIL |
+| 항목                           | 최종 값                                   |
+| ---------------------------- | -------------------------------------- |
+| BLE Device Name              | `SS_0001`                              |
+| Service UUID                 | `089fca17-755f-4578-b8af-ee5e32526b0f` |
+| Sensor Notify Characteristic | `0000FFF1-0000-1000-8000-00805F9B34FB` |
+| Control Write Characteristic | `0000FFF2-0000-1000-8000-00805F9B34FB` |
+| CCCD                         | `00002902-0000-1000-8000-00805F9B34FB` |
+
+확인할 것:
+
+* Android 앱과 ESP32의 UUID가 동일한지 확인한다.
+* Notify 구독이 정상적으로 활성화되는지 확인한다.
+* 위험도 명령이 Write characteristic으로 전송되는지 확인한다.
+* BLE 연결이 끊겼을 때 재연결 또는 끊김 상태 표시가 동작하는지 확인한다.
 
 ---
 
-## 3. 금지 표현 확인
+## 4. BLE Payload 확인
 
-README, 발표 자료, 보고서에서 다음 표현을 사용하지 않는다.
+최종 payload 예시는 다음과 같다.
 
 ```text
-정확한 체온 측정
-의료급 산소포화도 측정
-온열질환 진단
-낙상 100% 감지
-SpO2 기반 열스트레스 판단
-HR > 120이면 무조건 위험
-TEMP > 37.5이면 무조건 위험
+ID:0001,TEMP:34.8,TEMP_VALID:1,TEMP_SOURCE:MEASURED,HR:82,SPO2:98,ENV:28.4,HUM:55,LUX:1200,AX:0.01,AY:0.02,AZ:9.80,POSTURE:NORMAL
 ```
 
-권장 표현:
+| 필드               | 확인 여부           |
+| ---------------- | --------------- |
+| `ID`             | 작업자 ID 파싱 확인    |
+| `TEMP`           | 피부 접촉 온도 파싱 확인  |
+| `TEMP_VALID`     | 체온 유효 플래그 파싱 확인 |
+| `TEMP_SOURCE`    | 체온 데이터 출처 파싱 확인 |
+| `HR`             | 심박수 파싱 확인       |
+| `SPO2`           | 산소포화도 파싱 확인     |
+| `ENV`            | 주변 온도 파싱 확인     |
+| `HUM`            | 습도 파싱 확인        |
+| `LUX`            | 조도 파싱 확인        |
+| `AX`, `AY`, `AZ` | 3축 가속도 파싱 확인    |
+| `POSTURE`        | 자세 상태 파싱 확인     |
+
+BME280의 기압값 `PRESS`는 센서 확장 가능 항목이지만, 최종 BLE payload와 Firebase 핵심 스키마에서는 필수 항목으로 사용하지 않는다.
+
+---
+
+## 5. 센서 상태 확인
+
+| 센서                     | 최종 확인 내용                               |
+| ---------------------- | -------------------------------------- |
+| BME280                 | `ENV`, `HUM` 값 출력                      |
+| BH1750                 | `LUX` 값 출력                             |
+| MPU6050                | `AX`, `AY`, `AZ`, `POSTURE` 출력         |
+| MAX30102 / SEN0344     | `HR`, `SPO2` 출력                        |
+| MAX30205 / Fever Click | `TEMP`, `TEMP_VALID`, `TEMP_SOURCE` 출력 |
+
+MAX30205 / Fever Click은 최종 통합 펌웨어 기준으로 `0x48` 주소를 사용한다.
+I2C Scanner에서 다른 주소가 확인되면 펌웨어 상수 수정이 필요하다.
+
+---
+
+## 6. 위험도 명령 확인
+
+| 앱 위험도 | ESP32 명령         |
+| ----- | ---------------- |
+| 정상    | `RISK:SAFE`      |
+| 주의    | `RISK:CAUTION`   |
+| 위험    | `RISK:DANGER`    |
+| 응급    | `RISK:EMERGENCY` |
+
+확인할 것:
+
+* 앱에서 위험도 단계가 정상적으로 계산되는지 확인한다.
+* 동일한 위험도 명령이 불필요하게 반복 전송되지 않는지 확인한다.
+* ESP32가 수신한 명령에 따라 출력장치를 제어하는지 확인한다.
+
+---
+
+## 7. 출력장치 확인
+
+최종 시연 버전의 출력장치는 다음과 같다.
+
+| 출력장치    | 확인 내용            |
+| ------- | ---------------- |
+| RED LED | 위험도별 점등 또는 점멸 확인 |
+| 진동모터    | 위험도별 진동 패턴 확인    |
+| 부저      | 위험도별 경고음 확인      |
+
+최종 코드 기준 출력장치는 RGB LED가 아니라 단일 RED LED이다.
+기존 문서의 RGB LED 색상 표시 기준은 사용하지 않는다.
+
+---
+
+## 8. Firebase 확인
+
+Firebase Realtime Database는 다음 경로를 사용한다.
 
 ```text
-산업안전 보조 시스템
-온열질환 위험 가능성 조기 감지
+workers/{workerId}/currentStatus
+workers/{workerId}/riskLogs/{logId}
+```
+
+| 항목                 | 확인 내용                               |
+| ------------------ | ----------------------------------- |
+| `currentStatus`    | 최신 상태가 덮어쓰기 방식으로 갱신되는지 확인           |
+| `riskLogs`         | 위험 이벤트가 누적 저장되는지 확인                 |
+| `workerId`         | `SS_0001` → `0001`로 일치하는지 확인        |
+| `riskLevel`        | `정상`, `주의`, `위험`, `응급` 한글 값 확인      |
+| `riskCommand`      | `RISK:SAFE` 등 ESP32 명령 값 확인         |
+| `bleSignalLevel`   | `좋음`, `보통`, `약함`, `끊김`, `연결 전` 값 확인 |
+| `workLocationCode` | `LOC_ROOF` 등 최종 코드값 확인              |
+| `workLocationName` | 최종 표시명 확인                           |
+
+기존 문서의 `ZONE_A`, `A구역`, `CAUTION`, `GOOD` 같은 예시는 최종 코드 기준과 다르므로 사용하지 않는다.
+
+---
+
+## 9. 작업 위치 코드 확인
+
+| 코드              | 표시명         |
+| --------------- | ----------- |
+| `LOC_ROOF`      | 옥상 방수 작업 구역 |
+| `LOC_WAREHOUSE` | 실내 자재 창고    |
+| `LOC_OUTDOOR_A` | 외부 철근 조립 구역 |
+| `LOC_BASEMENT`  | 지하 설비 점검 구역 |
+| `LOC_SCAFFOLD`  | 외부 비계 작업 구역 |
+
+작업자 앱에서 선택한 작업 위치가 Firebase에 동일하게 저장되는지 확인한다.
+
+---
+
+## 10. 관리자 앱 확인
+
+관리자 앱은 Firebase 데이터를 읽어 작업자 상태를 표시한다.
+
+확인할 것:
+
+* Firebase 연결이 정상인지 확인한다.
+* 작업자 목록이 표시되는지 확인한다.
+* 위험도 높은 작업자가 구분되는지 확인한다.
+* 개별 작업자 상세 정보가 표시되는지 확인한다.
+* 주기 갱신 및 Firebase 리스너를 통해 최신 상태가 반영되는지 확인한다.
+
+관리자 앱은 다음 기능을 수행하지 않는다.
+
+```text
+BLE 센서 직접 연결
+센서 데이터 직접 수신
+위험도 직접 계산
+ESP32 직접 제어
+Firebase 데이터 임의 수정
+```
+
+---
+
+## 11. 발표 표현 체크
+
+사용 가능한 표현:
+
+```text
+ESP32 기반 PPE 웨어러블 안전 보조 시스템
+BLE Notify 기반 센서 데이터 전송
+BLE Write 기반 위험도 명령 전송
+Firebase Realtime Database 기반 작업자 상태 모니터링
 피부 접촉 온도 변화 추적
 심박수 변화 기반 생리적 부담 추정
 IMU 기반 자세 이상 및 낙상 가능성 추정
 다중 센서 융합 기반 위험도 판단
 ```
 
----
-
-## 4. 폴더 구조 확인
-
-권장 최종 구조:
+피해야 할 표현:
 
 ```text
-HNU_Capstone-Design/
-├─ README.md
-├─ docs/
-│  ├─ SYSTEM_ARCHITECTURE.md
-│  ├─ BLE_PROTOCOL.md
-│  ├─ FIREBASE_SCHEMA.md
-│  ├─ RISK_ALGORITHM.md
-│  ├─ TEST_PLAN.md
-│  └─ FINAL_CHECKLIST.md
-├─ HW/
-│  ├─ README.md
-│  ├─ SmartShield_ESP32/
-│  │  ├─ README.md
-│  │  └─ SmartShield_ESP32.ino
-│  └─ TestCode/
-│     ├─ README.md
-│     ├─ Sensor/
-│     ├─ Module/
-│     ├─ Integration_Test_Code/
-│     └─ Warning_Integration_Test_Code/
-└─ SW/
-   ├─ README.md
-   ├─ HNU_PPE_Control/
-   │  ├─ README.md
-   │  └─ app/
-   └─ HNU_PPE_Manager/
-      ├─ README.md
-      └─ app/
-```
-
-확인 항목:
-
-| 항목                 | 확인          |
-| ------------------ | ----------- |
-| 최상위 README 존재      | PASS / FAIL |
-| `docs/` 폴더 존재      | PASS / FAIL |
-| `HW/` 폴더 존재        | PASS / FAIL |
-| `SW/` 폴더 존재        | PASS / FAIL |
-| 최종 ESP32 펌웨어 위치 명확 | PASS / FAIL |
-| 작업자 앱 위치 명확        | PASS / FAIL |
-| 관리자 앱 위치 명확        | PASS / FAIL |
-
----
-
-## 5. ESP32 펌웨어 확인
-
-| 항목                                   | 확인          |
-| ------------------------------------ | ----------- |
-| ESP32 보드 업로드 성공                      | PASS / FAIL |
-| 시리얼 모니터 출력 확인                        | PASS / FAIL |
-| BLE 장치 이름이 `SS_0001` 형식인가?           | PASS / FAIL |
-| Service UUID가 앱과 동일한가?               | PASS / FAIL |
-| Notify Characteristic UUID가 앱과 동일한가? | PASS / FAIL |
-| Write Characteristic UUID가 앱과 동일한가?  | PASS / FAIL |
-| 센서 payload 형식이 문서와 일치하는가?            | PASS / FAIL |
-| `RISK:SAFE` 명령 처리 가능                 | PASS / FAIL |
-| `RISK:CAUTION` 명령 처리 가능              | PASS / FAIL |
-| `RISK:DANGER` 명령 처리 가능               | PASS / FAIL |
-| `RISK:EMERGENCY` 명령 처리 가능            | PASS / FAIL |
-| `RISK:ERROR`를 공식 위험도로 사용하지 않는가?      | PASS / FAIL |
-
----
-
-## 6. 센서 확인
-
-| 센서                     | 확인 항목                       | 확인          |
-| ---------------------- | --------------------------- | ----------- |
-| BME280                 | ENV / HUM / PRESS 출력        | PASS / FAIL |
-| BH1750                 | LUX 출력                      | PASS / FAIL |
-| MPU6050                | AX / AY / AZ / POSTURE 출력   | PASS / FAIL |
-| MAX30102 / SEN0344     | HR / SPO2 출력 또는 fallback 처리 | PASS / FAIL |
-| MAX30205 / Fever Click | TEMP 출력 또는 fallback 처리      | PASS / FAIL |
-
-주의:
-
-```text
-fallback 값은 실제 측정값이 아니다.
-센서 미연결 상태에서 출력되는 테스트값을 실제 센서값처럼 설명하지 않는다.
+의료기기
+정확한 체온 측정
+의료급 산소포화도 측정
+온열질환 진단
+낙상 100% 감지
+RGB LED 색상 경고
+관리자 앱이 BLE 센서와 직접 연결
+관리자 앱이 모든 작업자 상태를 완전 실시간으로 직접 감시
 ```
 
 ---
 
-## 7. I2C 주소 확인
+## 12. 최종 통과 기준
 
-| 센서                     | 예상 주소                     | 확인          |
-| ---------------------- | ------------------------- | ----------- |
-| BME280                 | `0x76` 또는 `0x77`          | PASS / FAIL |
-| BH1750                 | `0x23` 또는 `0x5C`          | PASS / FAIL |
-| MPU6050                | `0x68` 또는 `0x69`          | PASS / FAIL |
-| MAX30102 / SEN0344     | `0x57`                    | PASS / FAIL |
-| MAX30205 / Fever Click | `0x48` 또는 `0x49` 계열 확인 필요 | PASS / FAIL |
+발표 전 최소 통과 기준은 다음과 같다.
 
----
+| 영역       | 최소 통과 기준                 |
+| -------- | ------------------------ |
+| ESP32    | 센서값이 Serial Monitor에 출력됨 |
+| BLE      | 작업자 앱에서 `SS_0001` 연결 가능  |
+| Payload  | 작업자 앱에서 payload 파싱 가능    |
+| 위험도      | 정상/주의/위험/응급 중 하나로 표시 가능  |
+| 출력       | RED LED, 진동모터, 부저 출력 확인  |
+| Firebase | `currentStatus` 갱신 확인    |
+| 관리자 앱    | Firebase 기반 작업자 상태 확인 가능 |
 
-## 8. 작업자 앱 확인
-
-| 항목                            | 확인          |
-| ----------------------------- | ----------- |
-| 앱 빌드 성공                       | PASS / FAIL |
-| 앱 실행 성공                       | PASS / FAIL |
-| Bluetooth 권한 요청 정상            | PASS / FAIL |
-| 위치 권한 요청 정상                   | PASS / FAIL |
-| Foreground Service 권한 및 알림 정상 | PASS / FAIL |
-| ESP32 BLE 장치 검색 가능            | PASS / FAIL |
-| ESP32 BLE 연결 가능               | PASS / FAIL |
-| BLE Notify 수신 가능              | PASS / FAIL |
-| payload 파싱 정상                 | PASS / FAIL |
-| 위험도 계산 정상                     | PASS / FAIL |
-| UI 값 업데이트 정상                  | PASS / FAIL |
-| 위험 단계별 팝업 정상                  | PASS / FAIL |
-| 스마트폰 진동 정상                    | PASS / FAIL |
-| BLE Write 명령 전송 정상            | PASS / FAIL |
-| Firebase currentStatus 업로드 정상 | PASS / FAIL |
-| Firebase riskLogs 생성 정상       | PASS / FAIL |
-| BLE 끊김 시 UI 반영                | PASS / FAIL |
-| BLE 재연결 시도 정상                 | PASS / FAIL |
-
----
-
-## 9. 관리자 앱 확인
-
-| 항목                           | 확인          |
-| ---------------------------- | ----------- |
-| 앱 빌드 성공                      | PASS / FAIL |
-| 앱 실행 성공                      | PASS / FAIL |
-| Firebase 연결 정상               | PASS / FAIL |
-| 작업자 목록 표시                    | PASS / FAIL |
-| 위험도 표시                       | PASS / FAIL |
-| 응급 작업자 우선 표시                 | PASS / FAIL |
-| 작업 위치 표시                     | PASS / FAIL |
-| BLE 연결 상태 표시                 | PASS / FAIL |
-| 센서값 표시                       | PASS / FAIL |
-| 작업자 상세 화면 표시                 | PASS / FAIL |
-| 위험 로그 표시                     | PASS / FAIL |
-| 관리자 앱이 BLE 연결을 수행하지 않음       | PASS / FAIL |
-| 관리자 앱이 위험도 계산을 수행하지 않음       | PASS / FAIL |
-| 관리자 앱이 Firebase 데이터를 수정하지 않음 | PASS / FAIL |
-
----
-
-## 10. BLE 프로토콜 확인
-
-| 항목                    | 기준                                     | 확인          |
-| --------------------- | -------------------------------------- | ----------- |
-| Device Name           | `SS_0001`                              | PASS / FAIL |
-| Service UUID          | `089fca17-755f-4578-b8af-ee5e32526b0f` | PASS / FAIL |
-| Notify Characteristic | `0000FFF1-0000-1000-8000-00805F9B34FB` | PASS / FAIL |
-| Write Characteristic  | `0000FFF2-0000-1000-8000-00805F9B34FB` | PASS / FAIL |
-| CCCD                  | `00002902-0000-1000-8000-00805F9B34FB` | PASS / FAIL |
-| Notify payload        | `KEY:VALUE` 형식                         | PASS / FAIL |
-| Write 명령              | `RISK:*` 형식                            | PASS / FAIL |
-
----
-
-## 11. Firebase 구조 확인
-
-| 항목                       | 기준                                    | 확인          |
-| ------------------------ | ------------------------------------- | ----------- |
-| 현재 상태 경로                 | `workers/{workerId}/currentStatus`    | PASS / FAIL |
-| 위험 로그 경로                 | `workers/{workerId}/riskLogs/{logId}` | PASS / FAIL |
-| workerId                 | 4자리 문자열                               | PASS / FAIL |
-| BLE 이름과 workerId 일치      | `SS_0001` ↔ `0001`                    | PASS / FAIL |
-| payload ID와 workerId 일치  | `ID:0001` ↔ `0001`                    | PASS / FAIL |
-| 관리자 앱에서 currentStatus 읽기 | 가능                                    | PASS / FAIL |
-| 관리자 앱에서 riskLogs 읽기      | 가능                                    | PASS / FAIL |
-
----
-
-## 12. 위험도 알고리즘 확인
-
-| 항목                         | 확인          |
-| -------------------------- | ----------- |
-| SAFE 단계 계산 가능              | PASS / FAIL |
-| CAUTION 단계 계산 가능           | PASS / FAIL |
-| DANGER 단계 계산 가능            | PASS / FAIL |
-| EMERGENCY 단계 계산 가능         | PASS / FAIL |
-| 낙상 후보 처리 가능                | PASS / FAIL |
-| 움직임 없음 처리 가능               | PASS / FAIL |
-| HR 튐 값 예외 처리 가능            | PASS / FAIL |
-| SpO2 단독으로 열스트레스 위험 판단하지 않음 | PASS / FAIL |
-| TEMP를 심부체온으로 표현하지 않음       | PASS / FAIL |
-| LUX 단독으로 위험도 올리지 않음        | PASS / FAIL |
-| 센서값 누락 시 앱이 종료되지 않음        | PASS / FAIL |
-
----
-
-## 13. BLE 위치별 검증
-
-| 조건           | 확인          |
-| ------------ | ----------- |
-| 휴대폰 손에 든 상태  | PASS / FAIL |
-| 휴대폰 앞주머니     | PASS / FAIL |
-| 휴대폰 뒷주머니     | PASS / FAIL |
-| 휴대폰 가방 안     | PASS / FAIL |
-| 휴대폰 책상 위     | PASS / FAIL |
-| ESP32와 같은 몸쪽 | PASS / FAIL |
-| ESP32와 반대 몸쪽 | PASS / FAIL |
-| 걷기 상태        | PASS / FAIL |
-| 팔 움직임 상태     | PASS / FAIL |
-
-기록 항목:
-
-```text
-RSSI
-Notify 수신 성공률
-누락 패킷 수
-연결 끊김 횟수
-재연결 성공 시간
-마지막 데이터 수신 시각
-```
-
----
-
-## 14. 최종 시연 확인
-
-| 항목            | 확인          |
-| ------------- | ----------- |
-| ESP32 전원 ON   | PASS / FAIL |
-| 작업자 앱 실행      | PASS / FAIL |
-| BLE 연결 성공     | PASS / FAIL |
-| 작업 위치 선택      | PASS / FAIL |
-| 작업 시작         | PASS / FAIL |
-| 센서값 UI 표시     | PASS / FAIL |
-| 위험도 UI 표시     | PASS / FAIL |
-| ESP32 LED 출력  | PASS / FAIL |
-| ESP32 진동모터 출력 | PASS / FAIL |
-| ESP32 부저 출력   | PASS / FAIL |
-| Firebase 업로드  | PASS / FAIL |
-| 관리자 앱 표시      | PASS / FAIL |
-| 작업 종료         | PASS / FAIL |
-
----
-
-## 15. Git / 제출 파일 정리
-
-### Git에 포함 권장
-
-```text
-README.md
-docs/
-HW/SmartShield_ESP32/
-HW/TestCode/
-SW/HNU_PPE_Control/app/src/
-SW/HNU_PPE_Control/build.gradle.kts
-SW/HNU_PPE_Control/settings.gradle.kts
-SW/HNU_PPE_Manager/app/src/
-SW/HNU_PPE_Manager/build.gradle.kts
-SW/HNU_PPE_Manager/settings.gradle.kts
-```
-
-### Git에서 제외 권장
-
-```text
-.gradle/
-build/
-**/build/
-local.properties
-*.iml
-captures/
-.externalNativeBuild/
-.cxx/
-.DS_Store
-```
-
-### ZIP 제출 시 제외 권장
-
-```text
-.git/
-.gradle/
-**/build/
-local.properties
-```
-
----
-
-## 16. Firebase 보안 확인
-
-| 항목                              | 확인          |
-| ------------------------------- | ----------- |
-| `google-services.json` 공개 여부 확인 | PASS / FAIL |
-| Firebase Database Rules 확인      | PASS / FAIL |
-| 테스트용 전체 공개 규칙 제거 여부 확인          | PASS / FAIL |
-| 쓰기 권한 제한 여부 확인                  | PASS / FAIL |
-| 읽기 권한 제한 여부 확인                  | PASS / FAIL |
-
-공개 저장소에 올릴 경우 Firebase 보안 규칙을 반드시 확인한다.
-
----
-
-## 17. 최종 제출 전 한 줄 결론
-
-아래 문장을 README 또는 발표 자료에 포함할 수 있다.
-
-```text
-Smart Shield는 ESP32 기반 웨어러블 장치와 Android 앱을 BLE로 연결하여 작업자의 환경 데이터, 생체 신호, 자세 및 움직임 데이터를 수집하고, 온열질환 위험 가능성과 이상 상태를 조기에 감지하기 위한 산업안전 보조 시스템이다.
-```
-
----
-
-## 18. 최종 체크 결과
-
-```text
-최종 점검 일자:
-점검자:
-전체 상태: PASS / FAIL
-
-남은 문제:
-1.
-2.
-3.
-
-수정 필요 사항:
-1.
-2.
-3.
-
-최종 제출 가능 여부:
-가능 / 보류
-```
+위 항목 중 실패한 기능이 있으면 발표에서는 “구현 완료”가 아니라 “추가 검증 필요” 또는 “시연 환경에서 제한적으로 확인”으로 표현한다.

@@ -81,10 +81,11 @@ void resetPulseState() {
 }
 
 void updateSimpleHeartValues(uint32_t irValue, uint32_t redValue, unsigned long now) {
-  // MAX30102 원시값으로 착용 여부와 앱 표시용 간이 심박/산소포화도를 갱신합니다.
+  // MAX30102 원시값으로 손가락 감지 여부와 앱 표시용 간이 심박/산소포화도를 갱신합니다.
   pulse.fingerDetected = irValue > MAX30102_FINGER_IR_THRESHOLD;
 
   if (!pulse.fingerDetected) {
+    // 손가락이 감지되지 않으면 앱 파서의 허용 하한값을 보내고 측정값 플래그는 false로 둡니다.
     pulse.latestHr = 30;
     pulse.latestSpo2 = 50;
     pulse.hrMeasured = false;
@@ -93,7 +94,7 @@ void updateSimpleHeartValues(uint32_t irValue, uint32_t redValue, unsigned long 
     return;
   }
 
-  // 앱 시연용 간이값입니다. HR은 고정하지 않고 RAW와 시간에 따라 조금씩 변하게 합니다.
+  // 앱 시연용 간이값입니다. HR/SpO2는 RAW와 시간에 따라 조금씩 변하게 합니다.
   int hrWave = (int)((irValue / 3000 + redValue / 5000 + now / 1000) % 22);
   int spo2Wave = (int)((irValue / 20000 + redValue / 20000 + now / 3000) % 4);
   pulse.latestHr = constrain(72 + hrWave, 60, 110);
@@ -130,7 +131,7 @@ void printMax30102Debug() {
 }
 
 void updateHeartSensor() {
-  // 지정 주기마다 MAX30102를 읽고 디버그 로그와 fallback 상태를 갱신합니다.
+  // 지정 주기마다 MAX30102를 읽고 디버그 로그와 측정 상태를 갱신합니다.
   if (!max30102Ready) {
     resetPulseState();
     printMax30102Debug();
@@ -299,7 +300,7 @@ void scanI2C() {
 }
 
 void initSensors() {
-  // I2C 센서들을 순서대로 초기화하고 사용 가능 여부를 상태값에 저장합니다.
+  // I2C 센서들을 순서대로 초기화하고 사용 가능 여부를 전역 상태값에 저장합니다.
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
   Wire.setClock(100000);
   scanI2C();
@@ -320,6 +321,7 @@ void initSensors() {
     mpu.setGyroRange(MPU6050_RANGE_500_DEG);
     mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
   } else if (i2cDevicePresent(MPU6050_ADDR_PRIMARY) || i2cDevicePresent(MPU6050_ADDR_SECONDARY)) {
+    // Adafruit 드라이버 초기화가 실패해도 장치가 보이면 최소 레지스터 설정 후 가속도 원시값을 읽습니다.
     uint8_t address = i2cDevicePresent(MPU6050_ADDR_PRIMARY) ? MPU6050_ADDR_PRIMARY : MPU6050_ADDR_SECONDARY;
     Wire.beginTransmission(address);
     Wire.write(0x6B);
@@ -369,4 +371,3 @@ void initSensors() {
     Serial.println("[MAX30205] not detected at 0x48");
   }
 }
-
