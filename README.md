@@ -38,7 +38,6 @@ SW/HNU_PPE_Manager
 | `SW/HNU_PPE_Manager/` | 관리자 Android 앱 |
 | `docs/` | BLE, Firebase, 위험도, 측정 검증 문서 |
 | `tools/` | 드라이버 등 보조 파일 |
-| https://github.com/rhkdgns3412-tech/2026-capston | 학술제 최종 HW 구성 |
 
 ## 현재 코드 기준 통신 규격
 
