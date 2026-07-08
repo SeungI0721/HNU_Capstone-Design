@@ -1,6 +1,0 @@
-{
-    "board": "esp32:esp32:esp32",
-    "port": "COM4",
-    "sketch": "HW/SmartShield_ESP32/SmartShield_ESP32.ino",
-    "output": "build"
-}
