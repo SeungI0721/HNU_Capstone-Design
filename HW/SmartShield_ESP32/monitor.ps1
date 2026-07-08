@@ -1,3 +1,4 @@
+# SmartShield_ESP32 보드의 시리얼 로그를 Arduino CLI로 확인하는 스크립트
 param(
   [string]$Port = "",
   [int]$Baud = 115200

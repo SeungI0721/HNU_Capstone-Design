@@ -1,3 +1,4 @@
+// 앱 위험 단계를 ESP32 BLE Write 명령 문자열로 변환하는 파일
 package com.example.hnu_ppe_control.risk
 
 import com.example.hnu_ppe_control.data.RiskLevel

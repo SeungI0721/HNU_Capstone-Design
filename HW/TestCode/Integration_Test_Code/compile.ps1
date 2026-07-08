@@ -1,3 +1,4 @@
+# 통합 테스트 스케치를 Arduino CLI로 컴파일하는 스크립트
 param(
   [string]$Fqbn = "esp32:esp32:esp32"
 )

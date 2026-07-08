@@ -1,3 +1,4 @@
+# SmartShield_ESP32 펌웨어를 Arduino CLI로 컴파일하는 스크립트
 param(
   [string]$Fqbn = "esp32:esp32:esp32"
 )

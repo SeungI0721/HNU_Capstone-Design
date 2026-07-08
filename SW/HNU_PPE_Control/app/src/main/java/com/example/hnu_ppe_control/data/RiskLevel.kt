@@ -1,3 +1,4 @@
+// 앱 화면, Firebase 저장값, ESP32 제어 명령 매핑에서 공통으로 사용하는 위험 단계를 정의하는 파일
 package com.example.hnu_ppe_control.data
 
 // 앱 화면, Firebase 저장값, ESP32 제어 명령 매핑에서 공통으로 사용하는 위험 단계입니다.

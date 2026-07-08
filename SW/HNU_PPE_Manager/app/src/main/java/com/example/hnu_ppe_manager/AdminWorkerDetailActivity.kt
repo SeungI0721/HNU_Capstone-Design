@@ -1,3 +1,4 @@
+// 관리자 앱에서 개별 작업자의 Firebase 현재 상태를 상세 표시하는 화면 파일
 package com.example.hnu_ppe_manager
 
 import android.os.Bundle
@@ -82,6 +83,7 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
             .child(workerId)
             .child("currentStatus")
 
+        // 상세 화면은 열린 동안 currentStatus 변화를 실시간으로 반영합니다.
         statusListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 if (!snapshot.exists()) {
@@ -117,6 +119,7 @@ class AdminWorkerDetailActivity : AppCompatActivity() {
     }
 
     private fun renderStatus(status: AdminWorkerStatus) {
+        // Firebase 값이 없을 수 있으므로 AdminWorkerStatus의 표시용 기본값을 그대로 사용합니다.
         txtWorkerId.text = "workerId : ${status.workerId}"
         txtDeviceId.text = "deviceId : ${status.deviceId}"
         txtWorkLocation.text = "작업 위치 : ${status.displayLocation}"

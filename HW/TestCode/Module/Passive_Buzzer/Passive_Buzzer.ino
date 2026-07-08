@@ -1,3 +1,4 @@
+// 패시브 부저 PWM 출력 동작을 단독 확인하는 테스트 스케치
 #include <Arduino.h>
 
 #define BUZZER_PIN 18

@@ -1,3 +1,4 @@
+// 작업자 Android 앱 모듈의 빌드 옵션과 의존성을 정의하는 파일
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")

@@ -1,3 +1,4 @@
+// MPU6050 가속도 센서 연결과 자세 판단용 값을 확인하는 테스트 스케치
 #include <Arduino.h>
 #include <Wire.h>
 

@@ -2,6 +2,10 @@
 
 Smart Shield 작업자 Android 앱입니다. ESP32 웨어러블 장치와 BLE로 연결해 센서 데이터를 수신하고, 위험도를 계산한 뒤 UI, Firebase, ESP32 경고 출력에 반영합니다.
 
+## 이 폴더의 역할
+
+작업자가 사용하는 Android 앱 프로젝트를 관리합니다. ESP32 BLE 연결, 센서 payload 처리, 위험도 계산, Firebase 업로드, ESP32 경고 명령 전송이 이 앱의 핵심 역할입니다.
+
 ## 주요 기능
 
 - Android 버전별 BLE 권한 요청
@@ -17,6 +21,17 @@ Smart Shield 작업자 Android 앱입니다. ESP32 웨어러블 장치와 BLE로
 - Firebase `workers/{workerId}/currentStatus` 업로드
 - 위험/응급 상황 시 `workers/{workerId}/riskLogs/{logId}` 기록
 - Foreground Service 기반 작업 세션 유지
+
+## 코드 흐름
+
+```text
+작업 위치 선택
+→ BLE 장치 스캔 및 연결
+→ Notify payload 수신
+→ SensorDataParser로 파싱
+→ HeatstrokeAnalyzer로 위험도 계산
+→ UI 갱신, Firebase 업로드, ESP32 Write 명령 전송
+```
 
 ## 주요 파일
 
@@ -44,6 +59,27 @@ ID:0001,TEMP:34.8,TEMP_VALID:1,TEMP_SOURCE:MEASURED,HR:82,SPO2:98,ENV:28.4,HUM:5
 
 필수 필드는 `ID`, `TEMP`, `HR`, `SPO2`, `ENV`, `HUM`, `LUX`, `POSTURE`입니다. `TEMP_VALID`가 없던 과거 payload도 일부 호환하지만, 현재 펌웨어는 `TEMP_VALID`와 `TEMP_SOURCE`를 보냅니다.
 
+## 외부 의존성
+
+| 항목 | 현재 코드 기준 |
+|---|---|
+| Android SDK | 앱 빌드와 설치 |
+| Firebase Realtime Database | 현재 상태와 위험 로그 업로드 |
+| BLE 지원 Android 기기 | ESP32 연결과 Notify 수신 |
+| ESP32 펌웨어 | `HW/SmartShield_ESP32`의 BLE GATT 규격 |
+
+Firebase 연동 빌드에는 로컬 `app/google-services.json`이 필요합니다. 공개 저장소에는 실제 키가 포함된 파일을 올리지 않고, `app/google-services.example.json`을 참고해 각자 Firebase 콘솔에서 받은 파일을 배치합니다.
+
+## 주요 설정값
+
+| 항목 | 값 |
+|---|---|
+| BLE Service UUID | `089fca17-755f-4578-b8af-ee5e32526b0f` |
+| Notify UUID | `0000FFF1-0000-1000-8000-00805F9B34FB` |
+| Write UUID | `0000FFF2-0000-1000-8000-00805F9B34FB` |
+| Firebase currentStatus | `workers/{workerId}/currentStatus` |
+| Firebase riskLogs | `workers/{workerId}/riskLogs/{logId}` |
+
 ## 위험도 명령
 
 앱은 위험도를 ESP32 명령으로 변환해 Write characteristic에 씁니다.
@@ -66,9 +102,28 @@ cd SW\HNU_PPE_Control
 
 현재 단위 테스트 소스가 없으면 `:app:testDebugUnitTest`는 `NO-SOURCE`로 성공할 수 있습니다.
 
+## 테스트 방법
+
+1. Android 기기에서 BLE와 위치 관련 권한을 허용합니다.
+2. ESP32가 `SS_0001` 형식의 이름으로 advertising 중인지 확인합니다.
+3. 작업자 앱에서 작업 위치와 BLE 장치를 선택해 연결합니다.
+4. 센서 payload가 메인 화면과 상세 화면에 반영되는지 확인합니다.
+5. 위험도 변화가 Firebase와 ESP32 출력 장치에 반영되는지 확인합니다.
+
 ## 주의 사항
 
 - TEMP는 의료용 체온 진단값이 아니라 작업 시작 기준 대비 피부 접촉 온도 변화 추적값입니다.
 - MAX30102 HR/SpO2 값은 착용 상태와 움직임에 크게 영향을 받습니다.
 - Firebase 보안 규칙과 인증 동작은 실제 배포 환경에서 별도 검증이 필요합니다.
 - 앱이 ESP32에 연결되어 있지 않으면 위험도 계산 결과가 하드웨어 출력으로 전달되지 않습니다.
+- Windows에서 프로젝트 경로에 한글이 포함되면 Android Gradle Plugin 경로 검사로 빌드가 중단될 수 있습니다.
+- `app/google-services.json`은 로컬 설정 파일로 관리하고 GitHub에는 올리지 않습니다.
+
+## 관련 문서
+
+| 문서 | 설명 |
+|---|---|
+| [상위 SW README](../README.md) | Android 앱 전체 구성 |
+| [ESP32 펌웨어 README](../../HW/SmartShield_ESP32/README.md) | BLE payload 송신과 출력 제어 |
+| [위험도 알고리즘 README](app/src/main/java/com/example/hnu_ppe_control/risk/README.md) | 위험도 계산 세부 기준 |
+| [Firebase 스키마](../../docs/FIREBASE_SCHEMA.md) | 업로드 데이터 구조 |

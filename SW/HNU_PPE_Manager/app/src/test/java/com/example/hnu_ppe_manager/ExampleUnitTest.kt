@@ -1,3 +1,4 @@
+// Android 프로젝트 생성 기본 단위 테스트 파일
 package com.example.hnu_ppe_manager
 
 import org.junit.Test

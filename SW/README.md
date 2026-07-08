@@ -2,6 +2,10 @@
 
 이 폴더는 Smart Shield Android 앱 두 개를 포함합니다.
 
+## 이 폴더의 역할
+
+작업자 앱과 관리자 앱의 Android 프로젝트를 분리해 관리합니다. BLE 수신과 위험도 계산은 작업자 앱에서 수행하고, Firebase 조회 기반 모니터링은 관리자 앱에서 수행합니다.
+
 ## 앱 구성
 
 | 경로 | 역할 |
@@ -41,6 +45,8 @@
 
 ## 빌드
 
+각 앱 폴더에서 Gradle wrapper를 실행합니다.
+
 ```powershell
 cd SW\HNU_PPE_Control
 .\gradlew.bat :app:assembleDebug
@@ -48,7 +54,26 @@ cd SW\HNU_PPE_Control
 
 cd ..\HNU_PPE_Manager
 .\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:testDebugUnitTest
 ```
+
+## 외부 의존성
+
+| 항목 | 현재 코드 기준 |
+|---|---|
+| Android SDK | 앱 빌드와 실행에 필요 |
+| Kotlin / Android Gradle Plugin | 각 앱의 Gradle 설정 기준 |
+| Firebase Realtime Database | 작업자 상태 업로드와 관리자 조회 |
+| Android 기기 | BLE 테스트는 실제 기기에서 확인 필요 |
+
+## 주요 설정값
+
+| 항목 | 값 |
+|---|---|
+| 작업자 앱 | `HNU_PPE_Control` |
+| 관리자 앱 | `HNU_PPE_Manager` |
+| Firebase 기준 경로 | `workers/{workerId}` |
+| BLE 대상 장치명 | `SS_0001` 형식 |
 
 ## 검증
 
@@ -60,3 +85,18 @@ cd ..\HNU_PPE_Manager
 4. 관리자 앱에서 Firebase 상태가 목록과 상세 화면에 표시되는지 확인
 
 측정 및 시연 체크리스트는 `docs/MEASUREMENT_VERIFICATION.md`를 기준으로 기록합니다.
+
+## 주의사항
+
+- Windows에서 프로젝트 경로에 한글이 포함되면 Android Gradle Plugin 경로 검사로 빌드가 중단될 수 있습니다.
+- BLE 스캔과 연결 검증은 에뮬레이터가 아니라 실제 Android 기기 기준으로 확인합니다.
+- Firebase 보안 규칙과 인증 정책은 배포 전에 별도 검토가 필요합니다.
+
+## 관련 문서
+
+| 문서 | 설명 |
+|---|---|
+| [최상단 README](../README.md) | 전체 시스템 구조 |
+| [작업자 앱 README](HNU_PPE_Control/README.md) | BLE 수신과 위험도 계산 |
+| [관리자 앱 README](HNU_PPE_Manager/README.md) | Firebase 조회와 모니터링 |
+| [Firebase 스키마](../docs/FIREBASE_SCHEMA.md) | DB 구조 |

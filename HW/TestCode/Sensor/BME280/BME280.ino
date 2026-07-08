@@ -1,3 +1,4 @@
+// BME280 환경 센서 I2C 연결과 온습도 측정을 확인하는 테스트 스케치
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>

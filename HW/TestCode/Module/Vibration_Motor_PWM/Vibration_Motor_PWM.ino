@@ -1,3 +1,4 @@
+// 진동 모터 PWM 세기 제어를 단독 확인하는 테스트 스케치
 #include <Arduino.h>
 
 #define MOTOR_PIN 23

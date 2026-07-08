@@ -2,12 +2,41 @@
 
 이 폴더는 ESP32 펌웨어와 하드웨어 검증용 테스트 코드를 포함합니다.
 
+## 이 폴더의 역할
+
+ESP32 최종 펌웨어와 하드웨어 검증용 Arduino 테스트 코드를 관리합니다. 실제 장치 연결, 센서 주소 확인, 출력 장치 동작 확인은 이 폴더의 코드를 기준으로 진행합니다.
+
 ## 폴더 구조
+
+```text
+HW/
+├─ README.md
+├─ SmartShield_ESP32/
+└─ TestCode/
+```
 
 | 경로 | 설명 |
 |---|---|
 | `SmartShield_ESP32/` | 최종 통합 ESP32 펌웨어 |
 | `TestCode/` | 센서, 출력 모듈, 통합 테스트용 Arduino 스케치 |
+
+## 코드 흐름
+
+```text
+TestCode에서 센서와 출력 모듈 단독 확인
+→ Integration_Test_Code에서 센서 통합 확인
+→ SmartShield_ESP32 최종 펌웨어 빌드
+→ BLE 연결, Firebase 업로드, 출력 장치 동작을 앱과 함께 검증
+```
+
+## 외부 의존성
+
+| 항목 | 현재 코드 기준 |
+|---|---|
+| Arduino CLI | ESP32 스케치 컴파일과 업로드에 사용 |
+| ESP32 board package | `esp32:esp32:esp32` |
+| 주요 Arduino 라이브러리 | `Adafruit_BME280`, `Adafruit_MPU6050`, `BH1750`, `MAX30105`, ESP32 BLE 라이브러리 |
+| 실제 장치 | ESP32 Dev Module, I2C 센서, RED LED, 진동 모터, 부저 |
 
 ## 최종 하드웨어 기준
 
@@ -45,6 +74,8 @@
 
 ## 빌드
 
+저장소 루트에서 최종 펌웨어를 컴파일합니다.
+
 ```powershell
 arduino-cli compile --fqbn esp32:esp32:esp32 HW\SmartShield_ESP32
 ```
@@ -57,4 +88,13 @@ arduino-cli upload -p COM8 --fqbn esp32:esp32:esp32 HW\SmartShield_ESP32
 
 ## 실측 검증
 
-하드웨어 실측 결과는 `docs/MEASUREMENT_VERIFICATION.md` 기준으로 기록합니다.
+하드웨어 실측 결과는 [MEASUREMENT_VERIFICATION.md](../docs/MEASUREMENT_VERIFICATION.md) 기준으로 기록합니다. 빌드 성공은 실제 센서값 안정성, BLE 연결, 출력 장치 동작을 보장하지 않습니다.
+
+## 관련 문서
+
+| 문서 | 설명 |
+|---|---|
+| [최상단 README](../README.md) | 전체 시스템 구조 |
+| [SmartShield_ESP32 README](SmartShield_ESP32/README.md) | 최종 펌웨어 세부 설명 |
+| [TestCode README](TestCode/README.md) | 하드웨어 테스트 코드 흐름 |
+| [BLE_PROTOCOL.md](../docs/BLE_PROTOCOL.md) | ESP32와 작업자 앱 BLE 규격 |

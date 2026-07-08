@@ -22,6 +22,25 @@
 | VCC | 3.3V |
 | GND | GND |
 
+## 코드 흐름
+
+```text
+I2C_Seaner로 주소 확인
+→ 센서별 단독 스케치 업로드
+→ 시리얼 모니터에서 초기화 로그와 측정값 확인
+→ 최종 펌웨어의 센서 주소 기준과 비교
+```
+
+## 실행 방법
+
+각 센서 폴더에서 Arduino CLI를 실행합니다.
+
+```powershell
+arduino-cli compile --fqbn esp32:esp32:esp32 .
+arduino-cli upload --fqbn esp32:esp32:esp32 -p COM8 .
+arduino-cli monitor -p COM8 -c baudrate=115200
+```
+
 ## 예상 I2C 주소
 
 | 센서 | 예상 주소 |
@@ -41,3 +60,32 @@
 3. 각 센서 단독 스케치 업로드
 4. 시리얼 모니터에서 값 출력 확인
 5. 값이 비정상적이면 배선, 전원, 주소를 먼저 점검
+
+## 외부 의존성
+
+| 항목 | 설명 |
+|---|---|
+| Arduino CLI | 스케치 빌드와 업로드 |
+| ESP32 board package | `esp32:esp32:esp32` |
+| 센서 라이브러리 | 센서별 테스트 스케치의 `#include` 기준 |
+| 실제 센서 | 테스트 대상 센서가 ESP32 I2C 버스에 연결되어 있어야 함 |
+
+## 검증 기준
+
+- 예상 I2C 주소가 스캔 결과에 표시되는지 확인합니다.
+- 측정값이 시리얼 모니터에 반복 출력되는지 확인합니다.
+- 손 접촉, 빛 차단, 보드 움직임처럼 간단한 입력 변화에 값이 반응하는지 확인합니다.
+
+## 주의사항
+
+- 센서 단독 테스트 통과는 최종 BLE payload와 Firebase 업로드 성공을 의미하지 않습니다.
+- MAX30102와 MAX30205는 착용 상태와 접촉 상태에 영향을 크게 받습니다.
+- 최종 펌웨어의 fallback 동작은 `SmartShield_ESP32`에서 별도로 확인합니다.
+
+## 관련 문서
+
+| 문서 | 설명 |
+|---|---|
+| [TestCode README](../README.md) | 하드웨어 테스트 순서 |
+| [상위 HW README](../../README.md) | 최종 하드웨어 기준 |
+| [측정 검증 문서](../../../docs/MEASUREMENT_VERIFICATION.md) | 실측 기록 기준 |

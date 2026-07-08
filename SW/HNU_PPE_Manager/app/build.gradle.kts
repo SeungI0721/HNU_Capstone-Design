@@ -1,5 +1,15 @@
+// 관리자 Android 앱 모듈의 빌드 옵션과 의존성을 정의하는 파일
 plugins {
     alias(libs.plugins.android.application)
+}
+
+fun configValue(name: String): String {
+    return providers.gradleProperty(name)
+        .orElse(providers.environmentVariable(name))
+        .orElse("")
+        .get()
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
 }
 
 android {
@@ -14,6 +24,14 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "FIREBASE_DATABASE_URL", "\"${configValue("HNU_PPE_FIREBASE_DATABASE_URL")}\"")
+        buildConfigField("String", "FIREBASE_API_KEY", "\"${configValue("HNU_PPE_FIREBASE_API_KEY")}\"")
+        buildConfigField("String", "FIREBASE_APPLICATION_ID", "\"${configValue("HNU_PPE_FIREBASE_APPLICATION_ID")}\"")
+        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"${configValue("HNU_PPE_FIREBASE_PROJECT_ID")}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

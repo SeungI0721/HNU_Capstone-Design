@@ -1,3 +1,4 @@
+// 센서 입력과 경고 출력 모듈을 함께 점검하는 ESP32 통합 테스트 스케치
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>

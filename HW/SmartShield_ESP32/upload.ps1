@@ -1,3 +1,4 @@
+# SmartShield_ESP32 펌웨어를 연결된 ESP32 보드에 업로드하는 스크립트
 param(
   [string]$Port = "",
   [string]$Fqbn = "esp32:esp32:esp32"

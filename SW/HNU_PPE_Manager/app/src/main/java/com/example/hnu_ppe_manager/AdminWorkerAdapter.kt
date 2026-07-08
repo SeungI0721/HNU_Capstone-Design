@@ -1,3 +1,4 @@
+// 관리자 앱 작업자 목록과 위험 작업자 목록의 RecyclerView 항목을 표시하는 파일
 package com.example.hnu_ppe_manager
 
 import android.view.LayoutInflater
@@ -39,6 +40,7 @@ class AdminWorkerAdapter(
         private val txtFirstEmergencyLog: TextView = itemView.findViewById(R.id.txtFirstEmergencyLog)
 
         fun bind(worker: AdminWorkerStatus) {
+            // 위험 작업자 영역에서는 최초 응급 로그를 우선 보여 주고, 일반 목록에서는 숨깁니다.
             txtDeviceIdValue.text = worker.deviceId
             txtWorkLocationValue.text = worker.displayLocation
             txtRiskValue.text = worker.riskKorean

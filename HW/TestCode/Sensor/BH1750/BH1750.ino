@@ -1,3 +1,4 @@
+// BH1750 조도 센서 I2C 연결과 lux 측정을 확인하는 테스트 스케치
 #include <Arduino.h>
 #include <Wire.h>
 #include <BH1750.h>

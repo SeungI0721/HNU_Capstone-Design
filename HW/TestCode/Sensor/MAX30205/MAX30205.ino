@@ -1,3 +1,4 @@
+// MAX30205 피부 온도 센서 I2C 연결과 온도 측정을 확인하는 테스트 스케치
 #include <Arduino.h>
 #include <Wire.h>
 

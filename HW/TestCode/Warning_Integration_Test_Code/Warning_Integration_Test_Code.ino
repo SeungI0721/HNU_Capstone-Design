@@ -1,3 +1,4 @@
+// RED LED, 진동 모터, 부저 경고 패턴을 함께 점검하는 테스트 스케치
 #include <Arduino.h>
 
 #define LED_R 27

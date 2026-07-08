@@ -1,3 +1,4 @@
+// MAX30102 IR/RED 원시값을 확인해 심박·SpO2 측정 조건을 점검하는 테스트 스케치
 #include <Arduino.h>
 #include <Wire.h>
 #include "MAX30105.h"

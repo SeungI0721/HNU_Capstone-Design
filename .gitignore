@@ -10,11 +10,35 @@ build/
 **/.idea/
 *.iml
 
+# 로그와 임시 파일
+*.log
+*.tmp
+*.temp
+*.bak
+*.old
+
+# 압축 파일
+*.zip
+*.rar
+*.7z
+
 # Android 로컬 설정과 네이티브 빌드 산출물
 **/local.properties
 **/.externalNativeBuild/
 **/.cxx/
 **/captures/
+
+# Firebase와 인증 정보
+**/google-services.json
+!**/google-services.example.json
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+serviceAccountKey.json
+!serviceAccountKey.example.json
 
 # 운영체제 임시 파일
 .DS_Store

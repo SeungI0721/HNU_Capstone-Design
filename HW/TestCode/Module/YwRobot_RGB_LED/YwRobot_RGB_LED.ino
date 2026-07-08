@@ -1,3 +1,4 @@
+// YwRobot RGB LED 모듈의 색상 출력 핀을 확인하는 테스트 스케치
 #include <Arduino.h>
 
 #define LED_R 27

@@ -1,3 +1,4 @@
+// ESP32 I2C 버스에 연결된 장치 주소를 스캔하는 테스트 스케치
 #include <Arduino.h>
 #include <Wire.h>
 

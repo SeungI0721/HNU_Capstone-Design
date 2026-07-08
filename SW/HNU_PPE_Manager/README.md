@@ -1,239 +1,117 @@
+# HNU_PPE_Manager
 
-# Smart Shield 관리자 앱 README
+Smart Shield 관리자 Android 앱입니다. Firebase Realtime Database에 저장된 작업자 상태를 읽어 작업자 목록, 위험 작업자, 상세 상태를 표시합니다.
 
-## 1. 개요
+관리자 앱은 ESP32와 직접 BLE로 연결하지 않습니다. 센서 수신, payload 파싱, 위험도 계산, ESP32 출력 제어는 작업자 앱이 담당합니다.
 
-Smart Shield 관리자 앱은 Firebase Realtime Database에 저장된 작업자 상태를 조회하여 현장의 작업자 상태와 위험 작업자를 모니터링하는 Android 애플리케이션이다.
-
-관리자 앱은 ESP32 웨어러블 장치와 직접 BLE로 연결하지 않는다.  
-센서 데이터 수신, 위험도 계산, ESP32 출력장치 제어는 작업자 앱에서 수행한다.
-
-관리자 앱의 역할은 다음과 같다.
+## 이 폴더의 역할
 
 ```text
-Firebase 데이터 조회
+Firebase workers 조회
 → 작업자 목록 표시
-→ 위험도 높은 작업자 확인
-→ 작업자 상세 상태 확인
-→ 관리자 모니터링 보조
-````
-
----
-
-## 2. 전체 시스템에서의 위치
-
-Smart Shield 전체 흐름은 다음과 같다.
-
-```text
-ESP32 센서 장치
-→ BLE Notify
-→ Android 작업자 앱
-→ 위험도 계산
-→ BLE Write
-→ ESP32 RED LED / 진동모터 / 부저 제어
-→ Firebase Realtime Database 업로드
-→ Android 관리자 앱 조회
+→ 위험 작업자 우선 표시
+→ 작업 위치 필터링
+→ 작업자 상세 상태 표시
 ```
 
-관리자 앱은 이 흐름의 마지막 단계에서 Firebase 데이터를 읽어 작업자 상태를 표시한다.
+## 주요 파일
 
----
+| 파일 | 역할 |
+|---|---|
+| `app/src/main/java/com/example/hnu_ppe_manager/AdminMainActivity.kt` | 관리자 메인 화면, 모니터링 시작·중지, 목록 갱신 |
+| `app/src/main/java/com/example/hnu_ppe_manager/AdminWorkerDetailActivity.kt` | 개별 작업자 상세 상태 화면 |
+| `app/src/main/java/com/example/hnu_ppe_manager/AdminWorkerStatus.kt` | Firebase 스냅샷을 화면 표시용 모델로 변환 |
+| `app/src/main/java/com/example/hnu_ppe_manager/AdminWorkerAdapter.kt` | 작업자 목록 RecyclerView 표시 |
+| `app/src/main/java/com/example/hnu_ppe_manager/AdminFirebaseConfig.kt` | Firebase 수동 초기화 설정 |
+| `app/src/main/res/layout/activity_admin_main.xml` | 관리자 메인 화면 레이아웃 |
+| `app/src/main/res/layout/activity_admin_worker_detail.xml` | 작업자 상세 화면 레이아웃 |
+| `app/build.gradle.kts` | 앱 모듈 빌드 설정 |
 
-## 3. 관리자 앱의 역할
-
-| 기능           | 설명                                 |
-| ------------ | ---------------------------------- |
-| 작업자 목록 조회    | Firebase `workers` 경로에서 작업자 상태를 조회 |
-| 위험도 표시       | 작업자별 위험도 상태 표시                     |
-| 위험 작업자 우선 확인 | 위험도가 높은 작업자를 쉽게 확인                 |
-| 상세 화면 표시     | 개별 작업자의 센서값, 위치, BLE 상태, 위험도 표시    |
-| 상태 갱신        | 주기 갱신과 Firebase 리스너를 통해 최신 상태 반영   |
-
-관리자 앱은 작업자 앱이 업로드한 데이터를 기반으로 동작한다.
-따라서 관리자 앱 자체가 센서값을 생성하거나 위험도를 새로 계산하지 않는다.
-
----
-
-## 4. 관리자 앱이 수행하지 않는 기능
-
-관리자 앱은 다음 기능을 수행하지 않는다.
+## 코드 흐름
 
 ```text
-BLE 센서 직접 검색
-ESP32 직접 연결
-BLE Notify 직접 수신
-BLE Write 명령 전송
-센서 payload 직접 파싱
-위험도 직접 계산
-ESP32 RED LED / 진동모터 / 부저 직접 제어
-작업자 앱의 Foreground Service 역할 수행
+AdminMainActivity.onCreate()
+  Firebase 초기화
+  화면과 RecyclerView 바인딩
+  위치 필터와 빈 목록 상태 표시
+
+모니터링 시작
+  workers 노드 1회 조회
+  workers 노드 실시간 리스너 등록
+  15초 주기 보조 갱신 시작
+
+Firebase 데이터 수신
+  currentStatus가 있는 작업자만 읽음
+  AdminWorkerStatus로 변환
+  위험도와 갱신 시각 기준 정렬
+  위험 작업자 영역과 전체 목록 갱신
+
+작업자 선택
+  AdminWorkerDetailActivity 실행
+  workers/{workerId}/currentStatus 실시간 표시
 ```
 
-위 기능들은 모두 작업자 앱 또는 ESP32 펌웨어의 역할이다.
+## Firebase 의존성
 
----
-
-## 5. Firebase 구조
-
-관리자 앱은 Firebase Realtime Database의 다음 경로를 조회한다.
+관리자 앱은 다음 경로를 읽습니다.
 
 ```text
 workers/{workerId}/currentStatus
 workers/{workerId}/riskLogs/{logId}
 ```
 
-| 경로                                    | 설명         |
-| ------------------------------------- | ---------- |
-| `workers/{workerId}/currentStatus`    | 작업자의 최신 상태 |
-| `workers/{workerId}/riskLogs/{logId}` | 위험 이벤트 로그  |
+`currentStatus`는 작업자 목록과 상세 화면의 기준 데이터입니다. `riskLogs`는 모니터링 시작 이후 최초 응급 로그를 위험 작업자 목록에 표시할 때 사용합니다.
 
-관리자 앱의 기본 화면은 `currentStatus`를 중심으로 작업자 목록과 위험도 상태를 표시한다.
-상세 화면에서는 개별 작업자의 센서값과 상태 정보를 확인한다.
+## 주요 설정값
 
----
+관리자 앱은 공개 저장소에 Firebase API Key를 직접 저장하지 않습니다. 빌드 또는 실행 환경에서 다음 Gradle 속성이나 환경 변수를 설정해야 Firebase 수동 초기화가 동작합니다.
 
-## 6. currentStatus 주요 필드
+| 항목 | 설정 이름 |
+|---|---|
+| Firebase Database URL | `HNU_PPE_FIREBASE_DATABASE_URL` |
+| Firebase API Key | `HNU_PPE_FIREBASE_API_KEY` |
+| Firebase Application ID | `HNU_PPE_FIREBASE_APPLICATION_ID` |
+| Firebase Project ID | `HNU_PPE_FIREBASE_PROJECT_ID` |
+| 모니터링 보조 갱신 주기 | `15_000 ms` |
+| 전체 위치 필터 표시명 | `전체` |
+| 상세 화면 기준 경로 | `workers/{workerId}/currentStatus` |
 
-| 필드                 | 예시              | 설명           |
-| ------------------ | --------------- | ------------ |
-| `workerId`         | `0001`          | 작업자 ID       |
-| `deviceName`       | `SS_0001`       | BLE 장치명      |
-| `workLocationCode` | `LOC_ROOF`      | 작업 위치 코드     |
-| `workLocationName` | `옥상 방수 작업 구역`   | 작업 위치 표시명    |
-| `temp`             | `34.8`          | 피부 접촉 온도     |
-| `tempValid`        | `true`          | 체온 센서값 유효 여부 |
-| `tempSource`       | `MEASURED`      | 체온 데이터 출처    |
-| `hr`               | `82`            | 심박수          |
-| `spo2`             | `98`            | 산소포화도 추정값    |
-| `env`              | `28.4`          | 주변 온도        |
-| `hum`              | `55`            | 습도           |
-| `lux`              | `1200`          | 조도           |
-| `ax`               | `0.01`          | X축 가속도       |
-| `ay`               | `0.02`          | Y축 가속도       |
-| `az`               | `9.8`           | Z축 가속도       |
-| `posture`          | `NORMAL`        | 자세 상태        |
-| `riskLevel`        | `정상`            | 앱 표시용 위험 단계  |
-| `riskCommand`      | `RISK:SAFE`     | ESP32 제어 명령  |
-| `bleConnected`     | `true`          | BLE 연결 여부    |
-| `bleSignalLevel`   | `좋음`            | BLE 신호 상태    |
-| `bleRssi`          | `-58`           | BLE RSSI     |
-| `appSessionActive` | `true`          | 작업 세션 활성 여부  |
-| `updatedAt`        | `1710000000000` | 마지막 갱신 시각    |
+로컬 개발에서는 Git에 올리지 않는 환경 변수 또는 개인 Gradle 속성으로 위 값을 주입합니다.
 
----
+## 실행 및 빌드
 
-## 7. 위험도 값
+관리자 앱 폴더에서 Gradle 명령을 실행합니다.
 
-Firebase의 `riskLevel`은 앱 표시용 한글 값을 사용한다.
-
-| riskLevel | 의미             |
-| --------- | -------------- |
-| `정상`      | 특별한 이상 없음      |
-| `주의`      | 환경 또는 생체 변화 감지 |
-| `위험`      | 복합 위험 조건 감지    |
-| `응급`      | 긴급 대응 필요       |
-
-ESP32 제어 명령은 `riskCommand` 필드에 별도로 저장된다.
-
-| riskCommand      | 의미 |
-| ---------------- | -- |
-| `RISK:SAFE`      | 정상 |
-| `RISK:CAUTION`   | 주의 |
-| `RISK:DANGER`    | 위험 |
-| `RISK:EMERGENCY` | 응급 |
-
----
-
-## 8. BLE 신호 상태 값
-
-Firebase의 `bleSignalLevel`은 한글 표시값을 사용한다.
-
-| 값      | 의미               |
-| ------ | ---------------- |
-| `좋음`   | 안정적인 연결          |
-| `보통`   | 사용 가능한 연결        |
-| `약함`   | 끊김 가능성이 있는 약한 연결 |
-| `끊김`   | BLE 연결 끊김        |
-| `연결 전` | 아직 연결 전          |
-
-관리자 앱은 이 값을 이용해 작업자의 BLE 연결 상태를 표시한다.
-
----
-
-## 9. 작업 위치 코드
-
-작업자 앱에서 선택한 작업 위치는 Firebase에 다음 값으로 저장된다.
-
-| 코드              | 표시명         |
-| --------------- | ----------- |
-| `LOC_ROOF`      | 옥상 방수 작업 구역 |
-| `LOC_WAREHOUSE` | 실내 자재 창고    |
-| `LOC_OUTDOOR_A` | 외부 철근 조립 구역 |
-| `LOC_BASEMENT`  | 지하 설비 점검 구역 |
-| `LOC_SCAFFOLD`  | 외부 비계 작업 구역 |
-
-기존 문서의 `ZONE_A`, `A구역` 형식은 최종 코드 기준과 다르므로 사용하지 않는다.
-
----
-
-## 10. 화면 구성
-
-관리자 앱의 기본 화면 구성은 다음과 같다.
-
-| 화면        | 역할                              |
-| --------- | ------------------------------- |
-| 작업자 목록 화면 | 전체 작업자 상태와 위험도를 확인              |
-| 작업자 상세 화면 | 개별 작업자의 센서값, 위치, BLE 상태, 위험도 확인 |
-
-관리자 앱은 Firebase 기반으로 작업자 상태를 모니터링하며, 주기 갱신과 Firebase 리스너를 통해 최신 상태를 반영한다.
-
-“모든 작업자 상태를 완전 실시간으로 직접 감시한다”는 표현은 실제 구현과 다를 수 있으므로 사용하지 않는다.
-
----
-
-## 11. 시연 확인 절차
-
-관리자 앱 시연 전 다음 순서로 확인한다.
-
-```text
-1. 작업자 앱에서 BLE 장치 SS_0001 연결
-2. 작업자 앱에서 센서 payload 수신 확인
-3. 작업자 앱에서 Firebase currentStatus 업로드 확인
-4. 관리자 앱 실행
-5. 관리자 앱에서 작업자 목록 표시 확인
-6. 위험도 상태 표시 확인
-7. 개별 작업자 상세 화면 확인
-8. 위험 이벤트 발생 시 riskLogs 또는 위험 상태 반영 확인
+```powershell
+cd SW\HNU_PPE_Manager
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:testDebugUnitTest
 ```
 
----
+Android 기기 또는 에뮬레이터에서 실행하려면 Firebase Realtime Database 접근이 가능한 네트워크 환경이 필요합니다.
 
-## 12. 발표용 설명 문장
+## 테스트 방법
 
-발표에서는 관리자 앱을 다음과 같이 설명한다.
+1. 작업자 앱에서 ESP32 연결 또는 가짜 데이터 흐름으로 `currentStatus`를 업로드합니다.
+2. 관리자 앱을 실행합니다.
+3. 모니터링 시작 버튼을 누릅니다.
+4. 작업자 목록에 `workers/{workerId}/currentStatus` 데이터가 표시되는지 확인합니다.
+5. 위험도가 `위험` 또는 `응급`인 작업자가 위험 작업자 영역에 표시되는지 확인합니다.
+6. 작업자 항목을 눌러 상세 화면 값이 Firebase와 일치하는지 확인합니다.
 
-```text
-관리자 앱은 Firebase Realtime Database에 저장된 작업자 상태를 조회하여 현장의 작업자 상태와 위험도를 확인하는 모니터링 앱입니다. BLE 연결과 위험도 계산은 작업자 앱에서 수행하고, 관리자 앱은 Firebase 데이터를 기반으로 작업자 목록과 상세 상태를 표시합니다.
-```
+## 주의사항
 
-피해야 할 설명:
+- 관리자 앱은 위험도를 새로 계산하지 않고 작업자 앱이 업로드한 값을 표시합니다.
+- BLE 연결 상태와 센서값은 작업자 앱의 업로드 주기와 Firebase 연결 상태에 따라 지연될 수 있습니다.
+- Firebase 보안 규칙과 인증 정책은 실제 배포 환경에서 별도 검증이 필요합니다.
+- Firebase 설정값이 비어 있으면 앱은 빌드되지만 Firebase 초기화와 데이터 조회는 동작하지 않습니다.
+- 현재 앱은 `workers` 노드를 읽는 구조이므로 작업자 수가 늘어나면 조회 범위와 인덱스 전략을 재검토해야 합니다.
 
-```text
-관리자 앱이 ESP32와 직접 BLE로 연결합니다.
-관리자 앱이 센서 데이터를 직접 수신합니다.
-관리자 앱이 위험도를 직접 계산합니다.
-관리자 앱이 ESP32의 LED, 진동모터, 부저를 직접 제어합니다.
-관리자 앱이 모든 작업자 상태를 완전 실시간으로 직접 감시합니다.
-```
+## 관련 문서
 
----
-
-## 13. 최종 주의 사항
-
-* 관리자 앱은 Firebase 읽기 중심 모니터링 앱이다.
-* BLE, 센서 수신, 위험도 계산, ESP32 제어는 작업자 앱의 역할이다.
-* Firebase 필드명과 값은 작업자 앱이 업로드하는 실제 코드 기준을 따른다.
-* `riskLevel`은 한글 표시값을 사용한다.
-* `riskCommand`는 ESP32 제어 명령값을 사용한다.
-* `bleSignalLevel`은 한글 표시값을 사용한다.
-* 작업 위치 코드는 `LOC_*` 형식을 사용한다.
+| 문서 | 설명 |
+|---|---|
+| [상위 SW README](../README.md) | Android 앱 전체 구성 |
+| [작업자 앱 README](../HNU_PPE_Control/README.md) | Firebase 업로드와 위험도 계산 주체 |
+| [Firebase 스키마](../../docs/FIREBASE_SCHEMA.md) | `workers` 데이터 구조 |
+| [최상단 README](../../README.md) | 전체 시스템 구조 |

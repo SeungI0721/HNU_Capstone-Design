@@ -1,3 +1,4 @@
+// 진동 모터 ON/OFF 출력 동작을 단독 확인하는 테스트 스케치
 #include <Arduino.h>
 
 #define MOTOR_PIN 23

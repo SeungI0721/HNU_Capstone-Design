@@ -1,3 +1,4 @@
+// 관리자 앱의 작업자 목록, 위험 작업자, 위치 필터 모니터링 화면을 제어하는 파일
 package com.example.hnu_ppe_manager
 
 import android.content.Intent
@@ -43,6 +44,7 @@ class AdminMainActivity : AppCompatActivity() {
     private var monitoringStartedAtMillis = 0L
     private var riskRealtimeListener: ValueEventListener? = null
 
+    // 실시간 리스너와 별도로 주기 조회를 유지해 일시적인 이벤트 누락에 대비합니다.
     private val refreshRunnable = object : Runnable {
         override fun run() {
             readWorkersOnce()
@@ -98,6 +100,7 @@ class AdminMainActivity : AppCompatActivity() {
     private fun startMonitoring() {
         if (monitoring) return
 
+        // 모니터링 시작 이후 생성된 상태와 응급 로그만 현재 세션 데이터로 표시합니다.
         monitoring = true
         monitoringStartedAtMillis = System.currentTimeMillis()
         btnMonitoring.text = "모니터링 종료"
@@ -116,6 +119,7 @@ class AdminMainActivity : AppCompatActivity() {
     }
 
     private fun readWorkersOnce() {
+        // Firebase workers 전체를 한 번 읽어 목록과 위험 작업자 영역을 갱신합니다.
         FirebaseDatabase.getInstance()
             .reference
             .child("workers")
@@ -137,6 +141,7 @@ class AdminMainActivity : AppCompatActivity() {
     private fun startRiskRealtimeListener() {
         if (riskRealtimeListener != null) return
 
+        // 위험 상태 변화는 목록 우선순위에 바로 영향을 주므로 workers 노드 변경을 구독합니다.
         val workersReference = FirebaseDatabase.getInstance()
             .reference
             .child("workers")
@@ -161,6 +166,7 @@ class AdminMainActivity : AppCompatActivity() {
     private fun updateWorkersFromSnapshot(snapshot: DataSnapshot) {
         val loadedWorkers = ArrayList<AdminWorkerStatus>()
 
+        // currentStatus가 없는 작업자는 앱에 표시할 현재 상태가 없으므로 제외합니다.
         for (workerSnapshot in snapshot.children) {
             val currentStatus = workerSnapshot.child("currentStatus")
             if (!currentStatus.exists()) continue
@@ -207,6 +213,7 @@ class AdminMainActivity : AppCompatActivity() {
         val filters = buildLocationFilters()
         if (filters.none { it.name == selectedLocation }) selectedLocation = LOCATION_ALL
 
+        // 작업 위치는 Firebase에 올라온 실제 작업자 데이터 기준으로 동적으로 구성합니다.
         layoutLocationFilters.removeAllViews()
         filters.forEach { filter ->
             layoutLocationFilters.addView(createLocationChip(filter))
@@ -257,6 +264,7 @@ class AdminMainActivity : AppCompatActivity() {
     }
 
     private fun renderWorkers() {
+        // 선택한 위치의 작업자만 표시하고 위험도와 갱신 시각 순서로 정렬합니다.
         val locationWorkers = workers
             .filter { selectedLocation == LOCATION_ALL || it.displayLocation == selectedLocation || it.workLocationCode == selectedLocation }
             .sortedWith(AdminWorkerStatus.compareByRiskAndTime())

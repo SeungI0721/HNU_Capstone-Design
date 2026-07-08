@@ -6,10 +6,11 @@ Smart Shield 하드웨어를 단계별로 검증하기 위한 Arduino 테스트 
 
 ```text
 TestCode/
-  Sensor/
-  Module/
-  Integration_Test_Code/
-  Warning_Integration_Test_Code/
+├─ README.md
+├─ Sensor/
+├─ Module/
+├─ Integration_Test_Code/
+└─ Warning_Integration_Test_Code/
 ```
 
 ## 하위 폴더 요약
@@ -40,4 +41,40 @@ TestCode/
 | I2C SDA | GPIO21 |
 | I2C SCL | GPIO22 |
 
-각 하위 폴더의 구체적인 파일 역할과 실행 방법은 해당 폴더 README를 확인합니다.
+## 실행 방법
+
+각 테스트 스케치 폴더에서 Arduino CLI를 실행합니다. 보드 포트는 현재 PC에서 인식된 COM 포트로 바꿉니다.
+
+```powershell
+arduino-cli compile --fqbn esp32:esp32:esp32 .
+arduino-cli upload --fqbn esp32:esp32:esp32 -p COM8 .
+arduino-cli monitor -p COM8 -c baudrate=115200
+```
+
+## 외부 의존성
+
+| 항목 | 설명 |
+|---|---|
+| Arduino CLI | 테스트 스케치 빌드와 업로드 |
+| ESP32 board package | `esp32:esp32:esp32` |
+| 센서 라이브러리 | 각 센서 테스트 스케치의 `#include` 기준 |
+| 실제 하드웨어 | 테스트 대상 센서 또는 출력 모듈 |
+
+## 테스트 방법
+
+시리얼 모니터에서 센서 주소, 측정값, 출력 장치 동작 로그를 확인합니다. 측정값이 나오더라도 실제 장착 상태와 최종 펌웨어 동작은 별도로 확인해야 합니다.
+
+## 주의사항
+
+- `I2C_Seaner`는 폴더명이 코드 기준으로 유지되어 있습니다.
+- 테스트 코드는 최종 앱 연동을 보장하지 않습니다.
+- 출력 모듈 테스트 전에는 모터와 부저 구동 회로를 먼저 확인합니다.
+
+## 관련 문서
+
+| 문서 | 설명 |
+|---|---|
+| [상위 HW README](../README.md) | 하드웨어 전체 기준 |
+| [Sensor README](Sensor/README.md) | 센서 단독 테스트 |
+| [Module README](Module/README.md) | 출력 모듈 단독 테스트 |
+| [Integration Test README](Integration_Test_Code/README.md) | 센서 통합 테스트 |

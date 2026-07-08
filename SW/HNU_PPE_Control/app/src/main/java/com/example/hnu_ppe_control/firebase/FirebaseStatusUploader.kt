@@ -20,6 +20,7 @@ object FirebaseStatusUploader {
     private var currentStatusUploadInFlight = false
     private var pendingCurrentStatusUpload: PendingCurrentStatusUpload? = null
 
+    // Firebase 연결 상태를 앱 시작 시 확인해 업로드 실패 원인을 UI에 표시할 수 있게 합니다.
     fun startRealtimeConnection(callback: UploadCallback? = null) {
         database.goOnline()
         database.getReference(".info/connected").get()
@@ -69,6 +70,7 @@ object FirebaseStatusUploader {
         baselinePosture: String?,
         callback: UploadCallback? = null
     ) {
+        // workerId는 Firebase 경로에 직접 사용되므로 빈 값이면 업로드를 중단합니다.
         if (workerId.isBlank()) {
             Log.e(TAG, "currentStatus upload FAILED. workerId is blank")
             callback?.invoke(false, "currentStatus 실패: workerId 없음")
@@ -94,6 +96,7 @@ object FirebaseStatusUploader {
             baselinePosture = baselinePosture
         )
 
+        // 유효하지 않은 피부 온도는 숫자 필드 호환성을 위해 0.0으로 저장하고 별도 플래그로 구분합니다.
         data["temp"] = if (tempValid) temp else 0.0
         data["tempValid"] = tempValid
         data["tempSource"] = tempSource
@@ -197,6 +200,7 @@ object FirebaseStatusUploader {
         todayMaxTemp: Double?,
         callback: UploadCallback? = null
     ) {
+        // 위험 로그는 currentStatus와 달리 이벤트 기록이므로 push key로 누적 저장합니다.
         if (workerId.isBlank()) {
             Log.e(TAG, "riskLog upload FAILED. workerId is blank")
             callback?.invoke(false, "riskLogs 실패: workerId 없음")
@@ -308,6 +312,7 @@ object FirebaseStatusUploader {
     ) {
         database.goOnline()
 
+        // 센서 Notify가 빠르게 들어올 때는 마지막 상태만 보존해 Firebase 쓰기 중복을 줄입니다.
         synchronized(this) {
             if (currentStatusUploadInFlight) {
                 pendingCurrentStatusUpload = PendingCurrentStatusUpload(workerId, data, callback)

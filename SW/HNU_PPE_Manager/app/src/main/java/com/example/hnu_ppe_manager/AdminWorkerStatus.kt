@@ -1,3 +1,4 @@
+// Firebase 작업자 상태 스냅샷을 관리자 화면 표시용 모델로 변환하는 파일
 package com.example.hnu_ppe_manager
 
 import com.google.firebase.database.DataSnapshot
@@ -47,6 +48,7 @@ data class AdminWorkerStatus(
             riskLogsSnapshot: DataSnapshot? = null,
             riskLogSinceMillis: Long = 0L
         ): AdminWorkerStatus {
+            // 작업자 앱 버전 차이로 필드명이 다를 수 있어 현재 코드에서 쓰는 대체 필드를 함께 읽습니다.
             val workerId = snapshot.child("workerId").stringValue(workerKey).ifBlank { workerKey }
             val lastUpdatedValue = snapshot.child("lastUpdated").value ?: snapshot.child("updatedAt").value
             val lastUpdatedMillis = parseLastUpdatedMillis(lastUpdatedValue)
@@ -151,6 +153,7 @@ data class AdminWorkerStatus(
             snapshot: DataSnapshot?,
             sinceMillis: Long
         ): EmergencyLogSummary? {
+            // 모니터링 시작 이후의 최초 EMERGENCY 로그만 요약해 위험 작업자 목록에 표시합니다.
             return snapshot
                 ?.children
                 ?.mapNotNull { logSnapshot ->
