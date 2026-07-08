@@ -18,6 +18,7 @@
 #include <Adafruit_Sensor.h>
 #include <BH1750.h>
 #include <MAX30105.h>
+#include "heartRate.h"
 
 // =========================
 // 기본 설정값
@@ -61,11 +62,17 @@ const uint8_t BH1750_ADDR_SECONDARY = 0x5C;
 const uint8_t MAX30102_ADDR = 0x57;
 const uint8_t MAX30205_ADDR = 0x48;
 
-const uint32_t MAX30102_SAMPLE_INTERVAL_MS = 500;
-const uint32_t MAX30102_FINGER_IR_THRESHOLD = 50000;
+const uint32_t MAX30102_MIN_IR = 50000;  // IR 손가락 접촉 판단 기준값입니다.
+const uint32_t MAX30102_MIN_RED = 10000;  // RED는 IR보다 낮게 들어올 수 있어 별도 기준을 사용합니다.
+const uint32_t MAX30102_MAX_RAW = 260000;  // 포화로 판단할 원시 신호 상한입니다.
+const uint32_t MAX30102_SAMPLE_INTERVAL_MS = 10;  // 100Hz 설정에 맞춰 약 10ms마다 샘플링합니다.
 const byte MAX30102_RED_LED_AMPLITUDE = 0x24;
 const byte MAX30102_IR_LED_AMPLITUDE = 0x24;
+const byte SPO2_BUFFER_SIZE = 100;
+const byte MAX30102_MISSING_RESET_COUNT = 3;
+const uint32_t FINGER_STABLE_MS = 2000;
 const uint32_t MAX30102_DEBUG_INTERVAL_MS = 1000;
+const float BPM_JUMP_LIMIT = 35.0f;
 
 // =========================
 // 장치 객체와 상태값
@@ -101,15 +108,27 @@ unsigned long lastBlinkMs = 0;
 bool emergencyLedOn = false;
 
 struct PulseState {
+  long lastBeatMs = 0;
+  float bpm = 0;
+  float avgBpm = 0;
   int latestHr = 0;
   int latestSpo2 = 0;
   bool fingerDetected = false;
   bool hrMeasured = false;
   bool spo2Measured = false;
   bool hasMeasuredValue = false;
+  bool signalOutOfRange = false;
   uint32_t latestIr = 0;
   uint32_t latestRed = 0;
+  uint32_t irBuffer[SPO2_BUFFER_SIZE] = {0};
+  uint32_t redBuffer[SPO2_BUFFER_SIZE] = {0};
+  byte bufferSpot = 0;
+  byte bufferCount = 0;
+  byte noFingerCount = 0;
+  byte rates[8] = {0};
+  byte rateSpot = 0;
   unsigned long lastSampleMs = 0;
+  unsigned long fingerStableStartMs = 0;
   unsigned long lastDebugMs = 0;
 } pulse;
 

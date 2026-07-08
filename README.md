@@ -2,11 +2,31 @@
 
 Smart Shield는 ESP32 기반 PPE 웨어러블 장치와 Android 앱을 이용해 작업자 센서 상태와 위험도를 모니터링하는 산업안전 보조 프로토타입입니다.
 
+## Portfolio Summary
+
+Smart Shield는 ESP32 웨어러블 장치, Android 작업자 앱, Android 관리자 앱, Firebase Realtime Database를 연결한 임베디드/IoT 캡스톤 프로젝트입니다.  
+ESP32는 센서 payload를 BLE Notify로 전송하고, 작업자 앱은 이를 파싱해 위험도를 계산한 뒤 BLE Write와 Firebase 업로드를 수행합니다.  
+관리자 앱은 Firebase 데이터를 기반으로 작업자 현재 상태와 위험 로그를 모니터링합니다.  
+본 저장소는 의료기기나 상용 안전장비가 아니라, 센서 융합·BLE 통신·모바일 앱·클라우드 연동을 검증하기 위한 학부 캡스톤 프로토타입입니다.
+
 ## 프로젝트 목적
 
 작업자의 피부 접촉 온도, 심박 추정값, 산소포화도 추정값, 주변 환경, 자세 정보를 수집하고 위험 추세를 앱과 Firebase에 반영합니다. 위험 단계가 높아지면 작업자 앱이 ESP32로 제어 명령을 보내 RED LED, 진동 모터, 부저를 동작시킵니다.
 
 이 프로젝트의 센서 값은 의료 진단 목적이 아닙니다. 실제 현장 적용 전에는 센서 정확도, 착용 안정성, 통신 안정성, Firebase 보안 규칙을 별도로 검증해야 합니다.
+
+## My Role
+
+제가 주로 담당한 범위는 Android 앱과 BLE/Firebase 연동 흐름 중심입니다.
+
+- Android 작업자 앱 구현
+- Android 관리자 앱 구현
+- BLE 통신 payload 파싱 및 위험도별 제어 흐름 구현
+- Firebase Realtime Database 구조 설계 및 업로드 흐름 구현
+- 문서화, 발표 자료 정리, 최종 시연 흐름 조율
+- ESP32 센서·출력 장치 연동 과정의 일부 하드웨어 통합 지원
+
+하드웨어 회로, 센서 실측 정확도, 착용형 전원 안정성, 의료적 유효성, 산업 현장 배포 수준의 신뢰성은 별도 검증이 필요한 영역으로 분리했습니다.
 
 ## 전체 시스템 구조
 
@@ -23,10 +43,15 @@ Smart Shield/
 │  └─ HNU_PPE_Manager/
 ├─ docs/
 │  ├─ README.md
+│  ├─ SYSTEM_ARCHITECTURE.md
 │  ├─ BLE_PROTOCOL.md
 │  ├─ FIREBASE_SCHEMA.md
 │  ├─ RISK_ALGORITHM.md
-│  └─ MEASUREMENT_VERIFICATION.md
+│  ├─ MEASUREMENT_VERIFICATION.md
+│  ├─ DEMO_VERIFICATION_RESULT.md
+│  ├─ TEST_PLAN.md
+│  ├─ FINAL_CHECKLIST.md
+│  └─ OwnedParts.md
 └─ tools/
    └─ drivers/
 ```
@@ -39,6 +64,8 @@ Smart Shield/
 | `SW/HNU_PPE_Manager/` | 관리자 Android 앱 |
 | `docs/` | 통신 규격, Firebase 구조, 위험도 기준, 검증 문서 |
 | `tools/` | 드라이버 등 보조 파일 |
+
+ESP32 최종 빌드 기준 파일은 `HW/SmartShield_ESP32/SmartShield_ESP32.ino`입니다.
 
 ## 핵심 기능
 
@@ -118,7 +145,7 @@ arduino-cli monitor -p COM8 -c baudrate=115200
 - 관리자 앱 목록과 상세 화면 표시
 - RED LED, 진동 모터, 부저 출력 패턴
 
-세부 검증 기록 기준은 [MEASUREMENT_VERIFICATION.md](docs/MEASUREMENT_VERIFICATION.md)를 따릅니다.
+세부 검증 체크리스트 템플릿은 [MEASUREMENT_VERIFICATION.md](docs/MEASUREMENT_VERIFICATION.md)를 따릅니다. 현재 저장소 기준의 결과 요약은 [DEMO_VERIFICATION_RESULT.md](docs/DEMO_VERIFICATION_RESULT.md)에 `verified by build`, `verified by demo`, `partially verified`, `not verified`로 구분해 기록합니다.
 
 ## 주의사항
 
@@ -138,6 +165,11 @@ arduino-cli monitor -p COM8 -c baudrate=115200
 | [작업자 앱 README](SW/HNU_PPE_Control/README.md) | 작업자 앱 실행 흐름과 주요 파일 |
 | [관리자 앱 README](SW/HNU_PPE_Manager/README.md) | 관리자 앱 Firebase 조회와 화면 구성 |
 | [docs README](docs/README.md) | 문서 폴더 구성과 읽는 순서 |
+| [SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) | 전체 시스템 구성과 데이터 흐름 |
 | [BLE_PROTOCOL.md](docs/BLE_PROTOCOL.md) | BLE UUID, Notify, Write 규격 |
 | [FIREBASE_SCHEMA.md](docs/FIREBASE_SCHEMA.md) | Firebase 저장 구조 |
 | [RISK_ALGORITHM.md](docs/RISK_ALGORITHM.md) | 위험도 판단 기준 |
+| [MEASUREMENT_VERIFICATION.md](docs/MEASUREMENT_VERIFICATION.md) | 최종 실측 검증 체크리스트 템플릿 |
+| [DEMO_VERIFICATION_RESULT.md](docs/DEMO_VERIFICATION_RESULT.md) | 빌드·시연 기준 검증 결과 요약 |
+| [TEST_PLAN.md](docs/TEST_PLAN.md) | 최종 시연 전 테스트 시나리오 |
+| [FINAL_CHECKLIST.md](docs/FINAL_CHECKLIST.md) | 발표 전 최종 점검 항목 |

@@ -14,7 +14,8 @@
 | `BLE_PROTOCOL.md` | ESP32와 작업자 앱 사이 BLE Notify/Write 규격 |
 | `FIREBASE_SCHEMA.md` | Firebase Realtime Database 저장 구조 |
 | `RISK_ALGORITHM.md` | 위험도 판단 기준과 표현 주의사항 |
-| `MEASUREMENT_VERIFICATION.md` | 센서, BLE, Firebase, 출력 장치 실측 검증 기준 |
+| `MEASUREMENT_VERIFICATION.md` | 센서, BLE, Firebase, 출력 장치 실측 검증 체크리스트 템플릿 |
+| `DEMO_VERIFICATION_RESULT.md` | 빌드·시연·부분 검증·미검증 상태 요약 |
 | `TEST_PLAN.md` | 테스트 시나리오와 확인 항목 |
 | `FINAL_CHECKLIST.md` | 최종 점검 체크리스트 |
 | `OwnedParts.md` | 보유 부품과 하드웨어 구성 참고 자료 |
@@ -28,6 +29,7 @@ SYSTEM_ARCHITECTURE.md
 → FIREBASE_SCHEMA.md
 → RISK_ALGORITHM.md
 → MEASUREMENT_VERIFICATION.md
+→ DEMO_VERIFICATION_RESULT.md
 → TEST_PLAN.md
 → FINAL_CHECKLIST.md
 ```
@@ -55,10 +57,11 @@ SYSTEM_ARCHITECTURE.md
 | Firebase 경로와 필드 | `FIREBASE_SCHEMA.md` |
 | 위험도 기준 | `RISK_ALGORITHM.md` |
 | 실측 확인 항목 | `MEASUREMENT_VERIFICATION.md` |
+| 검증 결과 요약 | `DEMO_VERIFICATION_RESULT.md` |
 
 ## 테스트 방법
 
-문서 자체는 실행 대상이 아닙니다. 실제 검증은 Android 앱 빌드, ESP32 펌웨어 컴파일, 실제 장치 시연 결과를 기준으로 확인합니다. 검증 결과는 `MEASUREMENT_VERIFICATION.md`, `TEST_PLAN.md`, `FINAL_CHECKLIST.md`의 항목과 대조합니다.
+문서 자체는 실행 대상이 아닙니다. 실제 검증은 Android 앱 빌드, ESP32 펌웨어 컴파일, 실제 장치 시연 결과를 기준으로 확인합니다. 검증 체크리스트는 `MEASUREMENT_VERIFICATION.md`, 결과 요약은 `DEMO_VERIFICATION_RESULT.md`, 테스트 기준은 `TEST_PLAN.md`와 `FINAL_CHECKLIST.md`의 항목과 대조합니다.
 
 ## 주의사항
 

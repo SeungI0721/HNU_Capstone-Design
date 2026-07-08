@@ -72,36 +72,72 @@ String readHumidity() {
 }
 
 void resetPulseState() {
+  pulse.lastBeatMs = 0;
+  pulse.bpm = 0;
+  pulse.avgBpm = 0;
   pulse.latestHr = 0;
   pulse.latestSpo2 = 0;
-  pulse.fingerDetected = false;
   pulse.hrMeasured = false;
   pulse.spo2Measured = false;
   pulse.hasMeasuredValue = false;
+  pulse.signalOutOfRange = false;
+  pulse.bufferSpot = 0;
+  pulse.bufferCount = 0;
+  pulse.rateSpot = 0;
+  memset(pulse.rates, 0, sizeof(pulse.rates));
+  memset(pulse.irBuffer, 0, sizeof(pulse.irBuffer));
+  memset(pulse.redBuffer, 0, sizeof(pulse.redBuffer));
 }
 
-void updateSimpleHeartValues(uint32_t irValue, uint32_t redValue, unsigned long now) {
-  // MAX30102 원시값으로 손가락 감지 여부와 앱 표시용 간이 심박/산소포화도를 갱신합니다.
-  pulse.fingerDetected = irValue > MAX30102_FINGER_IR_THRESHOLD;
+bool isValidFingerSignal(uint32_t irValue, uint32_t redValue) {
+  bool signalEnough = irValue >= MAX30102_MIN_IR && redValue >= MAX30102_MIN_RED;
+  bool saturated = irValue >= MAX30102_MAX_RAW || redValue >= MAX30102_MAX_RAW;
+  return signalEnough && !saturated;
+}
 
-  if (!pulse.fingerDetected) {
-    // 손가락이 감지되지 않으면 앱 파서의 허용 하한값을 보내고 측정값 플래그는 false로 둡니다.
-    pulse.latestHr = 30;
-    pulse.latestSpo2 = 50;
-    pulse.hrMeasured = false;
-    pulse.spo2Measured = false;
-    pulse.hasMeasuredValue = false;
-    return;
+bool calculateSpo2FromBuffer() {
+  if (pulse.bufferCount < SPO2_BUFFER_SIZE) {
+    return false;
   }
 
-  // 앱 시연용 간이값입니다. HR/SpO2는 RAW와 시간에 따라 조금씩 변하게 합니다.
-  int hrWave = (int)((irValue / 3000 + redValue / 5000 + now / 1000) % 22);
-  int spo2Wave = (int)((irValue / 20000 + redValue / 20000 + now / 3000) % 4);
-  pulse.latestHr = constrain(72 + hrWave, 60, 110);
-  pulse.latestSpo2 = constrain(96 + spo2Wave, 95, 99);
-  pulse.hrMeasured = true;
+  uint32_t redMin = 0xFFFFFFFFUL;
+  uint32_t redMax = 0;
+  uint32_t irMin = 0xFFFFFFFFUL;
+  uint32_t irMax = 0;
+  double redSum = 0;
+  double irSum = 0;
+
+  for (byte i = 0; i < SPO2_BUFFER_SIZE; i++) {
+    uint32_t red = pulse.redBuffer[i];
+    uint32_t ir = pulse.irBuffer[i];
+    redMin = min(redMin, red);
+    redMax = max(redMax, red);
+    irMin = min(irMin, ir);
+    irMax = max(irMax, ir);
+    redSum += red;
+    irSum += ir;
+  }
+
+  float redDc = redSum / SPO2_BUFFER_SIZE;
+  float irDc = irSum / SPO2_BUFFER_SIZE;
+  float redAc = redMax - redMin;
+  float irAc = irMax - irMin;
+
+  if (redDc <= 0 || irDc <= 0 || redAc <= 0 || irAc <= 0) {
+    return false;
+  }
+
+  float ratio = (redAc / redDc) / (irAc / irDc);
+  if (isnan(ratio) || ratio < 0.4f || ratio > 3.0f) {
+    return false;
+  }
+
+  // 의료용 계산이 아니라 앱 시연용 간이 SpO2 추정값입니다.
+  int estimatedSpo2 = (int)round(110.0f - 25.0f * ratio);
+  pulse.latestSpo2 = constrain(estimatedSpo2, 70, 100);
   pulse.spo2Measured = true;
-  pulse.hasMeasuredValue = true;
+  pulse.hasMeasuredValue = pulse.hrMeasured && pulse.spo2Measured;
+  return true;
 }
 
 void printMax30102Debug() {
@@ -114,6 +150,13 @@ void printMax30102Debug() {
   if (!max30102Ready) {
     Serial.println("[MAX30102] not available, source=FALLBACK");
     return;
+  }
+
+  if (!pulse.fingerDetected) {
+    Serial.println("[MAX30102] Finger not detected");
+  }
+  if (pulse.signalOutOfRange) {
+    Serial.println("[MAX30102] Signal too weak or saturated");
   }
 
   Serial.print("[MAX30102] IR=");
@@ -131,9 +174,8 @@ void printMax30102Debug() {
 }
 
 void updateHeartSensor() {
-  // 지정 주기마다 MAX30102를 읽고 디버그 로그와 측정 상태를 갱신합니다.
   if (!max30102Ready) {
-    resetPulseState();
+    pulse.fingerDetected = false;
     printMax30102Debug();
     return;
   }
@@ -149,19 +191,92 @@ void updateHeartSensor() {
   uint32_t redValue = particleSensor.getRed();
   pulse.latestIr = irValue;
   pulse.latestRed = redValue;
-  updateSimpleHeartValues(irValue, redValue, now);
+
+  bool fingerNow = isValidFingerSignal(irValue, redValue);
+  pulse.signalOutOfRange = !fingerNow;
+
+  if (!fingerNow) {
+    if (pulse.noFingerCount <= MAX30102_MISSING_RESET_COUNT) {
+      pulse.noFingerCount++;
+    }
+    pulse.fingerDetected = false;
+    if (pulse.noFingerCount == MAX30102_MISSING_RESET_COUNT) {
+      resetPulseState();
+      pulse.noFingerCount = MAX30102_MISSING_RESET_COUNT + 1;
+    }
+    printMax30102Debug();
+    return;
+  }
+
+  pulse.noFingerCount = 0;
+
+  if (pulse.signalOutOfRange) {
+    printMax30102Debug();
+    return;
+  }
+
+  if (!pulse.fingerDetected) {
+    resetPulseState();
+    pulse.fingerDetected = true;
+    pulse.fingerStableStartMs = now;
+  }
+
+  pulse.redBuffer[pulse.bufferSpot] = redValue;
+  pulse.irBuffer[pulse.bufferSpot] = irValue;
+  pulse.bufferSpot = (pulse.bufferSpot + 1) % SPO2_BUFFER_SIZE;
+  if (pulse.bufferCount < SPO2_BUFFER_SIZE) {
+    pulse.bufferCount++;
+  }
+
+  if (now - pulse.fingerStableStartMs < FINGER_STABLE_MS) {
+    printMax30102Debug();
+    return;
+  }
+
+  if (checkForBeat(irValue)) {
+    long delta = now - pulse.lastBeatMs;
+    pulse.lastBeatMs = now;
+
+    if (delta >= 273 && delta <= 1500) {
+      float newBpm = 60.0f / (delta / 1000.0f);
+      if (newBpm >= 40.0f && newBpm <= 220.0f) {
+        if (pulse.avgBpm <= 0 || fabs(newBpm - pulse.avgBpm) <= BPM_JUMP_LIMIT) {
+          pulse.rates[pulse.rateSpot++] = (byte)round(newBpm);
+          pulse.rateSpot %= 8;
+
+          int total = 0;
+          int count = 0;
+          for (byte i = 0; i < 8; i++) {
+            if (pulse.rates[i] > 0) {
+              total += pulse.rates[i];
+              count++;
+            }
+          }
+          if (count > 0) {
+            pulse.bpm = newBpm;
+            pulse.avgBpm = (float)total / count;
+            pulse.latestHr = (int)round(pulse.avgBpm);
+            pulse.hrMeasured = true;
+            pulse.hasMeasuredValue = pulse.hrMeasured && pulse.spo2Measured;
+          }
+        }
+      }
+    }
+  }
+
+  calculateSpo2FromBuffer();
   printMax30102Debug();
 }
 
 String readHeartRate() {
-  if (!max30102Ready || pulse.latestHr <= 0) {
+  if (!max30102Ready || !pulse.fingerDetected || !pulse.hrMeasured || pulse.latestHr <= 0) {
     return "";
   }
   return String(pulse.latestHr);
 }
 
 String readSpo2() {
-  if (!max30102Ready || pulse.latestSpo2 <= 0) {
+  if (!max30102Ready || !pulse.fingerDetected || !pulse.spo2Measured || pulse.latestSpo2 <= 0) {
     return "";
   }
   return String(pulse.latestSpo2);
@@ -181,7 +296,7 @@ String readHeartRateForApp() {
     return hr;
   }
 
-  if (max30102Ready) {
+  if (max30102Ready && pulse.fingerDetected) {
     return String(FALLBACK_HR);
   }
 

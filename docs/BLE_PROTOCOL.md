@@ -251,12 +251,14 @@ RISK:EMERGENCY
 
 ## 15. BLE Write 명령 정의
 
-| 명령               | 의미 | ESP32 출력                      |
-| ---------------- | -- | ----------------------------- |
-| `RISK:SAFE`      | 정상 | LED 초록, 진동 OFF, 부저 OFF        |
-| `RISK:CAUTION`   | 주의 | LED 노랑, 짧은 진동, 짧은 부저          |
-| `RISK:DANGER`    | 위험 | LED 빨강, 반복 진동, 반복 부저          |
-| `RISK:EMERGENCY` | 응급 | LED 빨강 점멸, 강한 반복 진동, 빠른 반복 부저 |
+| 명령               | 의미 | ESP32 출력 |
+| ---------------- | -- | ---------- |
+| `RISK:SAFE`      | 정상 | RED LED OFF, 진동 OFF, 부저 OFF |
+| `RISK:CAUTION`   | 주의 | RED LED 점멸 또는 약한 경고 패턴, 짧은 진동, 짧은 부저 |
+| `RISK:DANGER`    | 위험 | RED LED ON 또는 반복 점멸, 반복 진동, 반복 부저 |
+| `RISK:EMERGENCY` | 응급 | RED LED ON, 강한 반복 진동, 빠른 반복 부저 |
+
+최종 통합 펌웨어는 RGB LED가 아니라 단일 RED LED를 기준으로 한다.
 
 ---
 

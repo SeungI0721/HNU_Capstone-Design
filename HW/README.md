@@ -20,6 +20,8 @@ HW/
 | `SmartShield_ESP32/` | 최종 통합 ESP32 펌웨어 |
 | `TestCode/` | 센서, 출력 모듈, 통합 테스트용 Arduino 스케치 |
 
+현재 최종 빌드 기준은 `HW/SmartShield_ESP32/SmartShield_ESP32.ino`입니다.
+
 ## 코드 흐름
 
 ```text
@@ -88,7 +90,7 @@ arduino-cli upload -p COM8 --fqbn esp32:esp32:esp32 HW\SmartShield_ESP32
 
 ## 실측 검증
 
-하드웨어 실측 결과는 [MEASUREMENT_VERIFICATION.md](../docs/MEASUREMENT_VERIFICATION.md) 기준으로 기록합니다. 빌드 성공은 실제 센서값 안정성, BLE 연결, 출력 장치 동작을 보장하지 않습니다.
+하드웨어 실측 결과는 [MEASUREMENT_VERIFICATION.md](../docs/MEASUREMENT_VERIFICATION.md) 기준으로 기록하고, 결과 요약은 [DEMO_VERIFICATION_RESULT.md](../docs/DEMO_VERIFICATION_RESULT.md)에 남깁니다. 빌드 성공은 실제 센서값 안정성, BLE 연결, 출력 장치 동작을 보장하지 않습니다.
 
 ## 관련 문서
 
@@ -98,3 +100,4 @@ arduino-cli upload -p COM8 --fqbn esp32:esp32:esp32 HW\SmartShield_ESP32
 | [SmartShield_ESP32 README](SmartShield_ESP32/README.md) | 최종 펌웨어 세부 설명 |
 | [TestCode README](TestCode/README.md) | 하드웨어 테스트 코드 흐름 |
 | [BLE_PROTOCOL.md](../docs/BLE_PROTOCOL.md) | ESP32와 작업자 앱 BLE 규격 |
+| [DEMO_VERIFICATION_RESULT.md](../docs/DEMO_VERIFICATION_RESULT.md) | 빌드·시연·부분 검증·미검증 상태 |

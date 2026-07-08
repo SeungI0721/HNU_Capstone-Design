@@ -4,6 +4,12 @@ build/
 **/app/build/
 .gradle/
 .pio/
+dist/
+out/
+target/
+node_modules/
+__pycache__/
+*.pyc
 
 # 개인 IDE 설정
 .vscode/
@@ -27,6 +33,15 @@ build/
 **/.externalNativeBuild/
 **/.cxx/
 **/captures/
+*.apk
+*.aab
+
+# Arduino / Embedded 빌드 산출물
+*.elf
+*.hex
+*.bin
+*.map
+*.eep
 
 # Firebase와 인증 정보
 **/google-services.json
@@ -37,6 +52,8 @@ build/
 *.key
 *.pem
 *.p12
+*.jks
+*.keystore
 serviceAccountKey.json
 !serviceAccountKey.example.json
 

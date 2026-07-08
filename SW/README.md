@@ -84,7 +84,7 @@ cd ..\HNU_PPE_Manager
 3. 위험도 변화가 앱 알림, Firebase, ESP32 출력에 반영되는지 확인
 4. 관리자 앱에서 Firebase 상태가 목록과 상세 화면에 표시되는지 확인
 
-측정 및 시연 체크리스트는 `docs/MEASUREMENT_VERIFICATION.md`를 기준으로 기록합니다.
+측정 및 시연 체크리스트는 [MEASUREMENT_VERIFICATION.md](../docs/MEASUREMENT_VERIFICATION.md)를 기준으로 기록하고, 결과 요약은 [DEMO_VERIFICATION_RESULT.md](../docs/DEMO_VERIFICATION_RESULT.md)에 구분해 남깁니다.
 
 ## 주의사항
 
@@ -100,3 +100,4 @@ cd ..\HNU_PPE_Manager
 | [작업자 앱 README](HNU_PPE_Control/README.md) | BLE 수신과 위험도 계산 |
 | [관리자 앱 README](HNU_PPE_Manager/README.md) | Firebase 조회와 모니터링 |
 | [Firebase 스키마](../docs/FIREBASE_SCHEMA.md) | DB 구조 |
+| [검증 결과 요약](../docs/DEMO_VERIFICATION_RESULT.md) | 빌드·시연·부분 검증·미검증 상태 |
